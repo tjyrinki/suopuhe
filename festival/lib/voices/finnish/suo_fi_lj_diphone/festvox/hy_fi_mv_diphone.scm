@@ -65,21 +65,11 @@
 ;; The location is stored in variable hy_fi_mv_dir.
 ;; If it isn't present, the voice is not loaded!
 (cond 
- ;; 0th: use my absolute path in my www demo
- ((probe_file "/home/nvolk/public_html/cgi-bin/festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/hy_fi_mv_diphone.scm")
-  (defvar hy_fi_mv_dir "/home/nvolk/public_html/cgi-bin/festival/lib/voices/finnish/hy_fi_mv_diphone/")
-  ;; this one is for my www demo
-  (set! suopuhe_output_file_prefix "/home/nvolk/public_html/cgi-bin/lavennin/tmp/"))
  ;; 1st: try default place in the Festival hierarchy:
  ((assoc 'hy_fi_mv_diphone voice-locations)
   (defvar hy_fi_mv_dir
     (cdr (assoc 'hy_fi_mv_diphone voice-locations))))
- ;; 2nd: use (my) absolute path in www demo
- ((probe_file "/home/n/v/nvolk/festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/hy_fi_mv_diphone.scm")
-  (defvar hy_fi_mv_dir "/home/n/v/nvolk/festival/lib/voices/finnish/hy_fi_mv_diphone/"))
- (t
-  (format stderr "The location of (hy_fi_mv_diphone) could not be determined!\n")
-  ))
+  )
 
 
 
@@ -91,12 +81,7 @@
  ((assoc 'suo_fi_lj_diphone voice-locations)
   (defvar suo_fi_lj_dir
     (cdr (assoc 'suo_fi_lj_diphone voice-locations))))
- ;; 2nd: use (my) absolute path
- ((probe_file "/home/n/v/nvolk/festival/lib/voices/finnish/suo_fi_lj_diphone/festvox/suo_fi_lj_diphone.scm")
-  (defvar hy_fi_mv_dir "/home/n/v/nvolk/festival/lib/voices/finnish/suo_fi_lj_diphone/"))
- (t
-  (format stderr "The location of (suo_fi_lj_diphone) could not be determined!\n")
-  ))
+  )
 
 
 
