@@ -202,7 +202,7 @@ Suopuhe's support for Festival's in-build voice-locating mechanism."
       (voice_hy_fi_mv_diphone)))
 
 (if (boundp 'suo_fi_lj_dir)
-    (define (voice_suo_fi_lj_diphone)
+    (define (suo_fi_lj_diphone)
       "(suo_fi_lj_diphone)
 Switch to the Finnish female voice.
 Suopuhe's support for Festival's in-build voice-locating mechanism."
