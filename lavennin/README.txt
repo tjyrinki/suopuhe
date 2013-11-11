@@ -1,0 +1,75 @@
+Suopuhe-projektin tekstin lavennin
+==================================
+
+Copyright (c) 2000-2003
+Helsingin yliopisto, 2000-2003 tai Suopuhe-projekti 
+
+Tekijä: Nicholas Volk, <nvolk@ling.helsinki.fi>
+
+Lisenssi: LGPL, katso tiedosto LICENCE.
+
+Versiohistoria:
+
+----    Fri Oct 22 2004
+
+	Lisätty lisenssitekstiehdotelma. Kiertänee vielä hyväksyttävänä.
+
+1.0d    Wed Oct 8 2003
+	Korjattu kongruoiviin lyhenteisiin raakatekstimoodissa 
+	liittynyt bugi, joka aiheutti ohjelman suorituksen
+	keskeytyksen.
+	Parannettu tuntemattomien merkkien lukemisessa
+	graavi- tms. merkkien käsittelyä ja
+	tuntematon merkki ignoroidaan kokonaan.
+
+1.0c    Sun Sep 14 2003
+	Erinäisiä manuaalin päivityksiä johtoryhmän iloksi.
+	Satunnaisia koodiin ja säänötihin kajoamisia siinä ohessa.
+	Roivottavasti en rikkonut mitään, ei aikaa asianmukaiseen
+	testaukseen...
+	Lisätty taika, joka muuttaa syöterivit, joilla on vain isoja kirjaimia
+	riveiksi joilla on vain pieniä kirjaimiksi. Näin otsikkoja
+	tms. ei luulla lyhenteiksi ja lueta kirjain kerrallaan...
+
+1.0b    Tue Jun 02 2003
+	Bugikorjauksia evaluaation pohjalta.
+	Korjattu mm. isojen kirjainten erittelyä,
+        kilo-tyyppisten etuliitteiden käsittelyä, tokenisointia sekä
+        rahayksikköjen lukua ja desimaalinollien käsittelyä.
+        Leksikkoa kasvatettu hieman.
+
+1.0a	Tue May 13 08:42:40 EEST 2003
+	Muutama bugifiksi. Lähinnä evaluaatiota varten "jäädytetty" versio.
+
+1.0	Mon Mar 24 15:25:54 EET 2003
+	Ensimmäinen virallinen versio
+
+
+Tiedostot
+---------
+
+lavennin/README.txt
+	Tämä tiedosto
+lavennin/bin/lavennin
+	Itse lavenninohjelma
+lavennin/data/fin_kongruoivat_lyhenteet.txt
+lavennin/data/fin_kongruoivat_sanat.txt
+lavennin/data/fin_lavennussaannot.txt
+lavennin/data/fin_luvut.txt
+lavennin/data/fin_merkit.txt
+lavennin/data/fin_yleissanasto.txt
+	Ohjelman sääntötiedostot
+lavennin/man/*.shtml \
+	Ohjelman käyttöohjeet ja dokumentaatio HTML-muodossa.
+lavennin/tmp
+	Ohjelman väliaikaistiedostot
+
+Käyttö itsenäisesti:
+
+$ lavennin < foo.txt
+
+Käyttö suopuheen syntetisaattorin kanssa:
+
+$ lavennin --output=xml < foo.txt > foo.suo; festival --tts foo.suo
+
+Tarkemmat ohjeet man-hakemistossa.

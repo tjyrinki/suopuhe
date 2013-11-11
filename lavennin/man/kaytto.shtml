@@ -1,0 +1,260 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML>
+ <HEAD>
+    <TITLE>NSW-laventimen käyttöohje</TITLE>
+    <META http-equiv="Content-Type" content="text/html">
+    <LINK rel="stylesheet" type="text/css" href="http://www.ling.helsinki.fi/suopuhe/style.css">
+    <META http-equiv="Content-Type" content="text/html">
+    <META name="author" content="Nicholas Volk">
+ </HEAD>
+<body>
+<!-- OVERRIDE STYLESHEET: -->
+<style type="text/css">
+<!--
+dt { 
+ font-family: monospace; 
+ color: black;
+} 
+-->
+</style>
+
+<p>
+<a href="http://www.ling.helsinki.fi/suopuhe/">Suopuhe-projekti</a>
+<a href="asennus.shtml">Asennus</a>
+<a href="saannot.shtml">Sääntötiedostot</a>
+<a href="funktio.shtml">Funktiolista</a>
+</p>
+
+
+<h1>NSW-laventimen käyttöohje</h1>
+
+<p>
+Lavennin tyypillisesti lukee saamaansa kantasyötettä (<em>standard input</em>).
+Peruskäyttöön riittää pelkkä
+</p>
+<pre>
+$ <b>lavennin &lt; <em>syötetiedosto</em></b>
+</pre>
+
+<p>
+Windows-käyttjieen täytyy eksplisiittisesti kertoa mitä komentotulkkia
+käytetään. Dos-tilassa käsky olisi käsittäkseni muotoa:
+</p>
+<pre>
+perl lavennin <em>syötetiedosto</em>
+</pre>
+<p>
+Tässä tietenkin oletaan, että Perl-komentotulkki on asennettuna
+ja että se löytyy polusta.
+Windows-tukea testattiin viimeksi joskus vuosi sitten, joten
+siltä suunnalta saattaa löytyä bugeja...
+</p>
+
+<p>
+Käyttö Suopuheen syntitisaattorin kanssa suopuhe-moodissa:
+</p>
+<pre>
+lavennin --output=xml &lt; foo.txt &gt; bar.suo
+festival --tts bar.suo
+</pre>
+<p>
+Syntetisaattori tunnistaa tiedostopäätteet <tt>suo</tt> ja <tt>suopuhe</tt>
+ja osaa näin ollen valita oikean moodin puheelle.
+Lisäksi tämä vaatii toimiakseen ainakin suomenkielisen äänen.</p>
+
+
+
+
+<p>
+Käytössä on lisäksi joukko valitsimia:
+</p>
+<dl>
+<dt><a name="debug"></a>--debug</dt>
+<dd>Asettaa debuggaus-moodin päälle. Tulostaa enemmän kuin runsaasti tietoja
+ohjelman ajon etenemistä STDERRiin. Turha peruskäyttäjälle ja hidastaa
+ohjelmaa julmetusti.</dd>
+
+<dt><a name="dialect"></a>--dialect=<em>murre</em></dt>
+<dd>Muuttaa tekstin halutun murteen mukaiseen kirjoitusasuun.
+ Hömppä kevennys, jonka tuki ontuu toistaiseksi pahasti.
+ Laillisia murteita ovat tällä hetkellä savo ja turku.
+ Tuntemattoman murrenimen yhteydessä käytetään kirjakieltä.
+ <em>Tuki puutteellinen, älä käytä!</em>
+</dd>
+
+<dt><a name="force"></a>--force</dt>
+<dd>Vanhentunut optio. Nykyään oletusarvoisesti päällä. Kumotaan
+<tt>--safe</tt>-optiolla.</dd>
+
+
+<dt><a name="language"></a>--language=<em>language</em></dt>
+<dd>Kielen nimi ISO 839-2/T -standardin mukaisesti.
+<a href="http://lcweb.loc.gov/standards/iso639-2/englangn_ascii.html">http://lcweb.loc.gov/standards/iso639-2/englangn_ascii.html</a>
+Oletusarvoisesti <tt>fin</tt>. Vähemmän yllättäen muiden kielten tukea
+ei ole implementoitu. 
+</dd>
+
+<dt><a name="mode"></a>--mode=<em>(line|run)</em></dt>
+<dd>Vastaanotettavan syötteen tyyppi. Kertoo tokenisoijalle
+onko syöte lause/rivi-muotoista (line) vaiko tuleeko lauserajoja
+etsiä juoksevasta tekstistä myös rivin keskeltä (run). Oletusarvona
+on <em>run</em>. 
+</dd>
+
+<dt><a name="output"></a>--output=<em>(plain-text|sapi4|xml)</em></dt>
+<dd>
+Määrittää millaisessa muodossa ohjelma palauttaa tulosteensa.
+Oletusarvoisesti ohjelma palauttaa raakatekstiä (plain-text).
+<tt>sapi4</tt>-tilassa mukana voi olla 
+<a
+href="http://research.microsoft.com/srg/docs/directTTSctrlTags.html">Microsoftin
+sapin nelosversion mukaisia tageja</a>. 
+(suopuhe-syntetisaattori ei näitä tue, ja ainakin <a href="http://www.timehouse.fi/mpohjeet/mp42sapi.htm#SAPIKOODIT">Mikropuheen SAPI-tuki</a> ei
+ole täydellinen.) Lisäksi ainakaan minä en ole kirjoittanut kuin muutamat
+sapi4-specifin lavennussäännön.
+Moodi xml tarkoittaa projektin omaa suopuhe-moodia,
+joka on eräänlainen TTS -merkintäkieli. 
+</dd>
+
+<dt><a name="safe"></a>--safe</dt>
+<dd>
+  Oletusarvoisesti lavennin yrittää pakottaa kaikki numerot ja lyhenteinä
+  pitämänsä sanat edes joten kuten luottavaan muotoon. (Entinen
+  <tt>--force</tt> optio.) <tt>--safe</tt> option avulla lavennetaan
+  vain ne saneet, joihin jokin lavennussääntö osuu, eli jotka
+  olisivat näin, ainakin teoriassa, turvallisesti lavennettavissa oikein.
+  Option käyttäminen voi jättää tekstiin asioita, jotka saavat Festivalin
+  suopuhe-moodin polvilleen, joten en suosittele sen käyttöä.
+</dd>
+
+<dt><a name="tagger"></a>--tagger=<em>(none|fdg|twol)</em></dt>
+<dd>
+ Kertoo ohjelmalle, mitä kolmannen osapuolen lingvististä työkalua 
+ sen tulee hyödyntää lavennuksen yhteydessä. 
+ Oletusarvoisesti ei käyetä mitään (none), jolloin
+käytetään vain ohjelman itsensa generoimia sanalistoja. Vaihtoehdot
+ovat 'fdg' (silloisen Conexorin FDG-jäsennin,
+nykyisin kai <a href="http://www.connexor.com">Connexorin</a> Machinese Syntax
+olis vastaava tuote).
+ja 'twol' (<a href="http://www.lingsoft.fi">Lingsoftin FINTWOL</a>,
+morfologinen analyysiohjelma, esihistoriallinen versio vuodelta 1992).
+FDG-jäsentimestä on käytetty versioita 2.0 ja 3.7 (jälkimmäinen <tt>--text</tt>-optiolla).
+</dd>
+
+<dt><a name="verbose"></a>--verbose</dt>
+<dd>Tulostaa erinäisiä "väliaikatietoja", kuten tehdyt lavennukset
+<tt>STDERR</tt>:iin. Hidastaa lavennusta huomattavasti</dd>.
+</dl>
+
+
+
+<h2>Laventimen toiminnan kuvaus</h2>
+<p>
+Ohjelman toimintamalli on seuraava:
+</p>
+<ol>
+
+ <li>Syöte talletetaan välitiedostoon <tt>tmp/input.txt</tt></li>
+
+ <li>
+  Tämän jälkeen syöte "tokenisoidaan", käytännössä pisteet ja välimerkit
+  erotataan sanoista, sanat laitetaan kukin omilla rivilleen.
+  <tt>plain-text</tt>- ja <tt>twol</tt>-moodeissa preprosessointi
+  on kaksivaiheinen. <tt>fdg</tt>-moodissa käytetään vain ensimmäistä
+  vaihetta, jonka jälkeen teksti muutetaan lause-per-rivi -muotoon
+  sillä FDG-jäsennin sisältää oman preprosessorinsa.
+  <br><br>
+
+  Käytetyt tilapäistiedostot:<tt><br>
+  plain-text: plain-a, plain-aa<br>
+  twol: tmp/twol-b, tmp/twol-c<br>
+  fdg: tmp/fdg-a, tmp/fdg-b</tt><br><br>
+</li>
+<li>
+  Seuraavaksi ohjelma menee lingvistiselle analyysiohjelmalle, jos
+  sellainen on asetettu käytettäväksi. FDG-jäsennin tulostus on 
+  text-moodissa, ei xml-formaatissa.
+  Lisäksi Twolissa suoritetaan kirjainkoon palautus.
+  FDG-jäsennyksen jälkeen tehdään sen syötteen jälkiprosessointia,
+  jossa muutettaan syntaktiset viittaussuhteet absoluuttisista suhteelisiksi
+  <br><br>
+  Käytetyt tilapäistiedostot:<br><tt>
+  plain-text: -<br>
+  twol: tmp/twol-d, tmp/twol-f<br>
+  fdg: tmp/fdg-c, tmp/fdg-d</tt><br><br>
+</li>
+<li>
+  Lopuksi saadut tiedot jaetaan omiin lokeroihinsa. Eli pintamuoto,
+  perusmuoto, morf. analyysi(t) ja pintasyntaktinen analyysi
+  talletetaan kukin omaan lokeroonsa. Tekstimuodossa täytetään
+  (tässä kohtaa) vain pintamuotolokero, Twol-pohjaisesta puuttuu
+  luonnollisesti syntaktinen tieto. Muista ohjelman aina hyödyllisistä
+  "lokeroista" lisää tietoa myöhemmin.<br><br>
+</li>
+
+<li>
+  Ohjelma yrittää laventaa tekstiä säännöstönsä avulla.
+  Säännöstön laventamatta jättämät, lukukelvottomat saneet
+  pakkolavennetaan luettavaan muotoon, jos <tt>--safe</tt> optio
+  ei ole päällö.
+  kannattaa tutustua
+  <a href="saannot.shtml">sääntöjen teko-ohjeeseen</a>,
+  varsinkin kun ohjelman kehitystyö on päättynyt.
+</li>
+</ol>
+
+
+<p>
+Lavennin uskoo aina saavansa oikeaa tietoa
+ulkoisilta lingvistisiltä apuohjelmilta, eli niiden tekemät
+virheanalyysit vaikuttavat luonnollisesti myös laventimen tekemiin
+analyyseihin. Pääsääntöisesti apuohjelmien käyttö kuitenkin parantaa
+lavennuksen laatua. Twol-ohjelmalta saatua syötettä disambiguoidaan
+hieman, eli heitetään pois analyysejä, jotka tiedetään vääriksi:
+"noin" ei ole käytäänössä koskaan noki-sanan instruktiivi jne.
+</p>
+
+<h2>Bugit</h2>
+<p>
+Niitä varmasti löytyy sekä koodista että säännöistä.
+Siitä vaan korjaamaan, ohjelmahan oli jaossa LGPL-lisenssin alla.
+Korjaukset voi lähettää ainakin toistaiseksi ohjelman (tiedot löytyvät
+koodista), joka koostaa niistä sitten satunnaisesti joutessaan päivityksiä.
+</p>
+
+<h2>To do</h2>
+<p>
+Alla on listattuna joukko asioita, jotka voisivat olla paremmin
+</p>
+<ul>
+<li>
+ Ikkunan koko: nyt vakio 30 sanaa. Parempi olisi, että ikkunan
+ koko mukautuisi dynaamisesti virkkeen kokoon, eli ikkunassa olisi
+ yksi virke kerrallaan.
+</li>
+<li>
+  Nyt koko syöte menee aina laventimen toiminnan kuvauksen kohtaan 4
+  asti ennen kuin tulostustaa alkaa tulemaan. Isoilla syötteillä
+  menee kauan, ennen kuin saadaan tulostusta. Sopii eräajoihin, mutta...<br>
+  Samalla päästäisiin eroon <tt>tmp</tt>-tiedostoista.
+</li>
+
+<li>Serverimoodi</li>
+
+<li>Etäisyyden parempi haarukointi mallia <tt>1-4:RULE("whatever")</tt></li>
+
+<li>perldoc</li>
+
+<li>Globaaleja muuttujia pitäisi vähentää</li>
+
+<li><tt>$case</tt> - <tt>$muoto</tt> -pareista pitäisi päästä eroon (aina merkkijonoiksi)</li>
+
+<li><tt>lavennussäännöt paloitellaan joka saneen kohdalla, voisi paloitella kerran ja tallettaa kolmeen eri taulukkoon...</tt></li>
+</ul>
+
+
+</body>
+</html>
+
+
+

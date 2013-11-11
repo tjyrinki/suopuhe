@@ -1,0 +1,5994 @@
+#!/usr/bin/perl -w
+#;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#;;                                                                       ;;
+#;;          Department of General Linguistics / Suopuhe project          ;;
+#;;                      University of Helsinki, FI                       ;;
+#;;                   Copyright (c) 2000,2001,2002,2003                   ;;
+#;;                        All Rights Reserved.                           ;;
+#;;                                                                       ;;
+#;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+#
+# This program is distributed under Gnu Lesser General Public License (cf. the
+# file LICENSE in distribution).
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+#
+###########################################################################
+#
+# A text normalizer, usage:
+#
+# unix_prompt$ lavennin < input.txt
+#
+# Author: Nicholas Volk (nvolk@ling.helsinki.fi)
+#
+# TODO:
+#
+# a lot
+# 
+# $debug_depth -debuggauksen sisennysmuuttuja
+#
+# $` and $' might be better than many regex solutions used here...
+#
+# some of the rules could be included in this file, but maybe that's not
+# a good idea
+# http://safari.oreilly.com/main.asp?bookname=cookbook&snode=138
+
+# NB: than FINTWOL version I used was a crappy 1992 version and the program
+# might have changed after that
+
+# NB: "fdg" is nowadays Connexor Machinese Syntax, should probably
+# change the variable name and check that the new progrma is similar to the
+# old one...
+
+# INITIALIZE, GLOBAL VARIABLES....
+
+
+# WWW
+my $www = 0; # 0 without -T in interprer name (line 1); 1 with -T
+my $wwwoutput = "";
+if ( $www ) { 
+    die;
+    delete @ENV{qw(IFS CDPATH PATH ENV BASH_ENV)};
+    use IO::File; # this is for saving the final WWW output alone...
+    use CGI::Carp;
+    use CGI qw/:standard escapeHTML/;
+    # Protection against DoS attacks,
+    # see http://stein.cshl.org/WWW/software/CGI/#dos
+    $CGI::POST_MAX=100;  # max 100 bytes posts
+    $CGI::DISABLE_UPLOADS = 1;  # no uploads
+}
+
+
+use strict;
+use Getopt::Long;
+use File::Copy; # tiedostojen kopiointi
+use File::Temp qw(tempfile tempdir);
+# security check by Lari:
+my $newlevel = File::Temp->safe_level( File::Temp::HIGH );
+    die "Could not change to high security.\n$!"
+        if $newlevel != File::Temp::HIGH;
+my ( $IO1, $IO2, $IO3, $IO4); # tmp-fileet
+my $IODIR = tempdir(CLEANUP => 1);
+use Cwd; # työhakemiston haku
+
+use POSIX qw(tmpnam);
+
+
+
+# command line parameters
+my ( $debug, $dialect, $force, $help, $language, $mode, $output, $tagger, $verbose, $force_deprecated);
+my $debug_depth = "";
+&GetOptions("debug"      => \$debug,
+	    "dialect=s"  => \$dialect,
+	    "safe"      => \$force,
+	    "force"     => \$force_deprecated,
+	    "help"       => \$help,
+	    "language=s" => \$language,
+	    "mode=s"     => \$mode,
+	    "output=s"   => \$output,
+	    "tagger=s"   => \$tagger,
+	    "verbose"    => \$verbose);
+
+# setting the force mode on/off
+if ( $force ) { $force = 0 }
+else { $force = 1; }
+if ( $force_deprecated ) {
+    print STDERR "--force is now deprecated, since forceful approach is now default\n";
+    print STDERR "You can use --safe to turn force mode off.\n";
+}
+
+# selecting the language
+$language ||= "fin";
+$language =~ tr/A-Z/a-z/;
+if ( $language =~ /^(finnish|fi|fin)$/ ) { $language = "fin"; }
+
+
+# checking the input mode
+$mode ||= "run";
+if ( $mode ne "run" && $mode ne "line" && $mode ne "formo" ) {
+  if ( $verbose ) {
+      print STDERR "You have specified an unsupported (input type) mode (\"$mode\").
+Legal values are 'run' (for running text) and 'line' (for utterance per line).
+We are using the 'run' mode.
+";
+  }
+  $mode = "run";
+}
+
+# TAGGER TYPE
+$tagger ||= "none";
+# "plain-text" is a deprecated input type (but valid output type)
+if ( $tagger eq "plain-text" ) { $tagger = "none"; } 
+# this is of course language dependent, but I'll keep it here for a while
+if ( $tagger ne "fdg" && 
+     $tagger ne "none" &&  
+     $tagger ne "twol" ) {
+  if ( $verbose ) {
+    print STDERR "You have specified an unsupported tagger (\"$tagger\").\n";
+    print STDERR "Supported taggers are 'twol' (Koskenniemi/Lingsoft tagger)";
+    print STDERR "and 'fdg'\n(Conexor's FDG parser).\n";
+    print STDERR "If no tagger is given or the value is illegal the 'none' tagger is used.\n";
+  }
+  $tagger = "none";
+}
+
+if ( $tagger eq "html" || $tagger eq "textmorfo" ) {
+    # "textmorfo" is an old product by Kielikone, I once did a crappy
+    # support for it, but eventually got annoyed with the tokenization
+    # it used which effectively made it very hard to support.
+    # There's nothing wrong with they tokenization approach,
+    # it was just too different from the other modes
+    die("Unsupported modes!\n");
+}
+
+my $HOME;
+if ( $www ) {
+    $mode = "line";
+    $force = 1;
+    # this is for the www demo alone...
+    $HOME = "/home/nvolk/public_html/cgi-bin/lavennin";
+}
+else {
+    $HOME = get_home_directory();
+}
+
+my $DATA_DIR = $HOME . "/data";
+
+
+# making the TMP dir...
+unless ( -e "$HOME/tmp" || $www ) {
+  if ( $verbose ) { print STDERR "$HOME/tmp does not exist! Creating it!\n"; }
+  unless ( mkdir "$HOME/tmp", 0777 ) { die"$HOME, $!"; }
+}
+
+my $clitic = ""; # DDR:kin # needs to be stored in a global variable
+my $agreement_case; # kongruoiva sijamuoto
+my $agreement_number; # kongruoiva luku
+my $agree_case_count = 0; # vahtii useampaa AGREE-CASE:A
+my $agree_number_count = 0;
+my $muoto; # avattava case numerona
+my $luku; # avattava luku numerona
+my $perusluku = 1; # perusluku = 1, järjestysluku = 0
+
+# nämä asetetaan alusta_kieli -funktiossa
+my $default_case;       my $case;
+my $default_gender;     my $gender;
+my $default_number;     my $number;
+my $recursion;
+## näillä olta arvot ennen RC:n lukua (tai sitten ei:kuunum)
+my $default_min_year     = my $min_year = 0;
+my $default_max_year     = my $max_year = 10000;
+
+my $default_kuunum       = my $kuunum   = 0; # 0: tammikuuta, 1: ensimmäistä
+
+lueRC();
+$output ||="plain-text";
+if ( $www ) { $output = "xml"; }
+unless ( alusta_kieli($language) ) {
+  die("Setting up language \"", $language, "\" failed!\n");
+}
+
+
+
+my @pintamuoto; # conexor 2
+my @perusmuoto;   # conexor 3, twol ???
+my @morfo;
+my @synta;
+my @komme;
+my @argument;
+my @tag;
+my $kommentti;
+my $apukommentti;
+my @korvattu;
+
+my $akronyymi = 0;
+
+my %agree_abbr; # ym. ns. em.
+my %kongruoiva_sana; # aari ... ääni
+my %yksittainen_merkki; # '#', '¤', ...
+my @numero; # numerosanat 0-9, puoli, kymmenen, sata ...
+
+my %yleissanasto; # generoitavia lyhenteitä, nimiä tms.
+
+my @lavennussaanto;
+my $lavennussaantomaara; # miksei $#lavennussaanto, korjaan joskus
+my $etaisyys = 0; # tarkasteltavan sanan etäisyys itse sanasta
+
+my ( %nom, %gen, %ptv, %ine, %ela, %ill, %ade, %abl, %all, %ess, %tra );
+
+my $header;
+my $header_printed = "no";
+
+if ( $output eq "xml" ) {
+  my $tmp_aika = scalar localtime;
+  $header = "<?xml version=\"1.0\"?>\n" 
+. "<!DOCTYPE SUOPUHE PUBLIC \"-//SUOPUHE//DTD SUOPUHE speech mark up//EN\"\n" 
+. "  \"suopuhe.dtd\"\n" . "[]>\n" 
+. "<!-- format=suopuhe created_from=$tagger " 
+. $tmp_aika . " -->\n" 
+    . "<suopuhe>\n <speaker>\n  <utterance>\n";
+
+} 
+
+
+#### muut kielen mukaan ...
+lue_yleissanasto();
+lue_paasanalista(); # luetaan vasta yleissanaston jälkeen...
+lue_numerot();
+lue_agree_abbr(); 
+lue_merkit();
+$lavennussaantomaara = lue_lavennussaannot();
+
+
+if ( $mode eq "formo" ) {
+  formo();
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# SUBFUNCTIONS
+###
+#
+# alusta_kieli($language)
+#
+# ISO639-mukaiset lyhenteet.
+sub alusta_kieli {
+  my $kieli = $_[0];
+  if ( $kieli eq "fin" ) { return aseta_ISO639_fin(); }
+  return 0;
+}
+
+###
+#
+# aseta_ISO639_fin
+#
+# asettaa suomen kielen oletusarvot
+sub aseta_ISO639_fin {
+    if ( $debug ) { 
+	$debug_depth .= " ";
+	print STDERR "$debug_depth-aseta_ISO639_fin():\n";
+    }
+    $language = "fin";
+    $default_case =   $case   = "NOM";
+    $default_gender = $gender = "NEUTR";
+    $default_number = $number = "SG";
+    $recursion = "no";
+    if ( $debug ) { chop($debug_depth); }
+    return 1;
+}
+
+###
+#
+# aukikirjoita
+#
+# Saa syötteenä (max.) kolminumeroisen luvun, joka
+# sitten lavennetaan halutuin tiedoin.
+#
+# Ruma, mutta toiminee sangen nopeasti, sillä ei tarvitse generoida
+# haluttuja muotoja...
+sub aukikirjoita {
+  unless ( $language eq "fin" ) { die(); }
+  if ( $debug ) { 
+      $debug_depth .= " ";
+      print STDERR "$debug_depth-aukikirjoita($_[0], $_[1]): ";
+  }
+  my ( $kolminumero ) = $_[0];
+  # nollaa ei palauteta, (muuten .. tuhatnolla, tuhatyksi)
+  if ( $kolminumero == 0 ) {
+      if ( $debug ) { 
+	  print STDERR "<EMPTY_STRING>\n";
+	  chop($debug_depth);
+      }
+      return "";
+  }
+  my $c = $_[1];
+  if ( $kolminumero !~ /^\d{1,3}$/ ) { print STDERR "$kolminumero"; die; }#die(); }
+
+  my $tama = "";
+  my $yhdet = 0;
+  my $kymmenet = 0;
+  my $sadat = 0;
+  # kolme lukua
+  if ( $kolminumero =~ /^(.)(.)(.)$/ ) {
+      $yhdet = $3;
+      $kymmenet = $2;
+      $sadat = $1;
+  }
+  # kaksi lukua
+  elsif ( $kolminumero =~ /^(.)(.)$/ ) {
+      $yhdet = $2;
+      $kymmenet = $1;
+  }
+  # yksi luku
+  else { $yhdet = $kolminumero; }
+
+  if ( $perusluku == 1 ) { # PERUSLUKU
+    if ( $sadat > 1 && $muoto == 1 && $luku == 0 ) {
+	  #print STDERR "_ $sadat $muoto $luku _";
+	  $tama = $numero[$sadat][$luku+1] . "sataa";
+    }
+    elsif ( $sadat == 0 ) { $tama = ""; }
+    elsif ( $sadat == 1 ) { $tama = $numero[11][($luku+$muoto)]; }
+    else { # yleinen tapaus
+      $tama = $numero[$sadat][$luku+$muoto] . $numero[11][$luku+$muoto];
+    }
+    
+    if ( $kymmenet == 1 ) {
+      # kymmenen+SIJA:
+      if ( $yhdet == 0 ) { $tama .= $numero[10][($luku+$muoto)]; }
+      # N-toista+SIJA:
+      else {
+	$tama .= $numero[$yhdet][($luku+$muoto)] . "toista";
+	$yhdet = 0;
+      }
+    }
+    elsif ( $kymmenet > 1 ) {
+      if ( $muoto == 1) { # N-kymmentä
+	$tama .= $numero[$kymmenet][($luku+1)] . "kymmentä"; 
+      }
+      else{ # N-kymmen(NUMERO)
+	$tama .= $numero[$kymmenet][($luku+$muoto)] . $numero[10][($luku+$muoto)];
+      }
+    }
+    if ( $yhdet > 0 ) {
+	
+	$tama .= $numero[$yhdet][($luku+$muoto)];
+    }
+  }
+  else { # JÄRJESTYSLUVUT
+    if ( $sadat > 2 ) { # 3456789
+      $tama = $numero[$sadat+14][($luku+$muoto)] . $numero[25][($luku+$muoto)];
+    }
+    elsif ( $sadat == 0 ) {  $tama = ""; } # 0
+    elsif ( $sadat == 1 ) { #1
+      $tama = $numero[25][($luku+$muoto)];
+    }
+    else { # 2 -> kahdes- ei tois!
+      $tama = $numero[29][($luku+$muoto)] . $numero[25][($luku+$muoto)];
+    }
+    # KYMMENET
+    if ( $kymmenet == 1 ) { # 1
+      if ( $yhdet == 0 ) {
+	$tama .= $numero[24][($luku+$muoto) ];
+      }
+      else { # huom 1=28, 2=29
+	if ( $yhdet == 1 ) {
+	  $tama .= $numero[28][($luku+$muoto)] . "toista";
+	}
+	elsif ( $yhdet == 2 ) {
+	  $tama .= $numero[29][($luku+$muoto)] . "toista";
+	}
+	else {
+	  $tama .= $numero[$yhdet+14][($luku+$muoto)] . "toista";
+	}
+	$yhdet = 0;
+      }
+    } 
+    elsif ( $kymmenet > 2 ) { # 3-9
+      $tama .= $numero[$kymmenet+14][($luku+$muoto)] . $numero[24][($luku+$muoto)]; 
+      
+    }
+    elsif ( $kymmenet == 2 ) {
+      $tama .= $numero[29][($luku+$muoto)] . $numero[24][($luku+$muoto)]; 
+    }
+    # yhdet
+    if ( $yhdet == 2 && $c > 0 ) { # kahdennettuhannet (ei toiset)
+      $tama .= $numero[29][($luku+$muoto)];
+    }
+    elsif ( $yhdet > 0 ) {
+      $tama .= $numero[$yhdet+14][($luku+$muoto)];
+    }
+  }
+  if ( $debug ) { 
+      $debug_depth =~ s/ //;
+      print STDERR "$tama\n";
+  }
+  return $tama;
+  
+}
+
+
+sub avaa {
+  my $tyyppi = my $parametrit = $_[0];
+  if ( $debug ) { 
+      print STDERR "avaa($_[0], $_[1])\n"; 
+  }
+  # lisää: jos agreement_case on määritelty, mutta sitä ei käytetä???
+  $tyyppi =~ s/\(.*$//;
+ 
+  unless ( $parametrit =~ s/^[^\(]*\(// ) { $parametrit = ""; } # EI PARAMETREJÄ
+  $parametrit =~ s/\)\s*$//;
+  my $alkuperainen = $_[1];
+  $alkuperainen =~ s/^\s+//;
+  $alkuperainen =~ s/\s+$//;
+  $alkuperainen =~ s/\s+/ /g;
+
+
+
+  if ( $verbose ) { print STDERR "$tyyppi $parametrit $alkuperainen\n"; }
+
+
+
+  # asetetaan parametrit
+  $case = $default_case; 
+  $number = $default_number; 
+  $gender = $default_gender;
+  $recursion = "no";
+  # muu parametrin arvo kuin oletusarvo
+
+  my $edelliset_parametrit = $parametrit; # estetään jääminen silmukkaan
+  my $arg;
+
+  # XML-argumentit käyttäytyvät poikkeuksellisesti:
+  # ne eivät voi saada "tavallisia" parametrejä
+  if ( $tyyppi eq "XML-ARGUMENT" ) {
+    $arg = $parametrit;
+    $arg =~ s/^\"//;
+    $arg =~ s/=/=\"/g;
+    $arg =~ s/,/\" /g;
+    $parametrit = "";
+  }
+  elsif ( $tyyppi eq "XML-TAG" ) {
+    $arg = $parametrit;
+    $parametrit = "";
+    $arg =~ s/^\"//;
+    $arg =~ s/\"$//;
+    $arg =~ s/=/=\"/g;
+    $arg =~ s/ /\" /g;
+    $arg =~ s/^(\S+)\" /$1 /;
+  }
+  elsif ( $tyyppi eq "SAPI4-TAG" ) {
+    $arg = $parametrit;
+    $arg =~ s/\s*$//;
+    $arg =~ s/^\s*//;
+    $arg = "\\" . $arg . "\\";
+    $parametrit = "";
+  }
+  elsif ( $tyyppi eq "REPLACEMENT" || $tyyppi eq "PARTIAL-REPLACEMENT" ||
+	  $tyyppi eq "LTS" ) {
+    $arg = $parametrit;
+    $arg =~ s/\"\s*$//;
+    $arg =~ s/^\s*\"//;
+    $parametrit = "";
+  } 
+
+  while ( $parametrit ne "" ) {
+    # print STDERR "PAR: $parametrit\n";
+    my $head = $parametrit;      
+    $head =~ s/,.*$//;
+    $parametrit =~ s/^[^,]*($|,)//;
+    my $value = $head;
+    $value =~ s/^[^=]*=//; # yksittäisen parametrin arvo
+    $value =~ tr/a-z/A-Z/;
+    $head =~ s/=.*$//; # yksittäinen parametri
+    $head =~ tr/A-Z/a-z/;
+    
+    if ( $head eq "case" ) {
+      if ( $language eq "fin" ) {
+	if ( $value eq "HEAD" ) {
+	  # => tarkista puuttuuko AGREE-osa, jos die():
+	    if ( $agreement_case eq "NONE" ) { die(); } 
+	    $case = $agreement_case;
+	}
+	else {
+	  if ( sijamuoto($value) == 0 ) {
+	    print STDERR "Laiton sijamuoto tai parametrin arvo : $value!\n"; die();
+	  }
+	  $case = $value;
+	}
+      }
+    }
+    elsif ( $head eq "num" ) {
+      if ( $language eq "fin" ) {
+	if ( $value eq "HEAD" ) {
+	  # => tarkista puuttuuko AGREE-osa, jos die():
+	  if ( $agreement_number eq "NONE" ) { die(); } 
+	  $number = $agreement_number;
+	}
+	elsif ( $value =~ /^(SG|PL)$/ ) {
+	  $number = $value;
+	}
+	else { print STDERR "**$value**"; die(); }
+      }
+    }      
+    
+    # elsif ( $head eq "gender" ) # these might be present in other languages 
+    
+    # REKURSION ASETUS:
+    # itse rekursio tapahtuu lavenna()-funktiossa, jos tämä sallii..
+    elsif ( $head eq "recursion" ) {
+      $value =~ tr/A-Z/a-z/;
+      if ( $value eq "right" || $value eq "no" || $value eq "left" ) {
+	$recursion = $value;
+      }
+      else { print STDERR "Laiton arvo rekursiolle: $value!\n"; die(); }
+    } # <= REKURSION ASETUS LOPPUU
+#    elsif ( $head eq "surface" ) {}
+    elsif ( $head eq "numtype" && $value eq "ORD" ) { $perusluku = 0; }
+    elsif ( $head eq "numtype" && $value eq "CARD" ) { $perusluku = 1; }
+    elsif ( $head eq "numtype" ) {
+      print STDERR "Laiton arvo numtypelle: $value\n"; die();
+    }
+    else { print STDERR "Tuntematon parametri ($head)\n"; die(); }
+    
+    if ( $edelliset_parametrit eq $parametrit ) {
+      print STDERR "parametrit jäivät silmukkaan! $value $head |$parametrit\n";
+      die();
+    }
+    $edelliset_parametrit = $parametrit;
+  } # <- parametrien asettelu loppuu
+  
+
+  
+  # ASETETAAN LUKU
+  if ( $number eq "PL" ) { $luku = 14; }
+  else { $luku = 0; }
+  # ASETETAAN SIJAMUOTO
+  $muoto = sijamuoto($case); # hoitaa myös kongruenssin!
+  # tehtiin jo: (tai olisi pitänyt tehdä)
+  #if ( $muoto == 0 ) {
+  #  print STDERR "MUODOTON $case $agreement_case\n";
+  #}
+
+  # print STDERR "LUKU $luku MUOTO $muoto\n";
+  # <- parametrien trimmaus päättyy
+
+  #####   #   #   #   #  #####   #####      #
+    #      # #     # #   #    #  #    #     #
+    #       #       #    #    #  #    #     #
+    #       #       #    #####   #####      #
+    #       #       #    #       #          #
+    #       #       #    #       #          #
+  # tyypin asettaminen
+  # ABBR
+  # tavallinen lyhenne
+  if ( $tyyppi eq "ABBR" ) {
+      $apukommentti = " ABBR " . kaanteissijamuoto($muoto) ." ";
+      my $tmp = $pintamuoto[15];
+#    if ( mittalyhenne($tmp) ne $tmp ) { 
+#	# m2 => neliömetriä
+#	if ( $pintamuoto[14+$etaisyys] ne "1" &&
+#	     onko_numero($pintamuoto[14+$etaisyys]) &&
+#	     $muoto == 1 ) 
+#	{ $muoto = 2; }
+#	$tmp = mittalyhenne($tmp);
+#    }
+
+      # ABBR can contains only "standard" Finnish alphabets, tack!
+      if ( $tmp =~ /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]+$/ ||
+	   ( $tmp =~ /^[A-ZÅÄÖ\-0-9]+$/ && $tmp =~ /[A-ZÅÄÖ]/ ) ) {
+	  # sisäviiva pois KU-68 -sanoista
+	  $tmp =~ s/^([A-ZÅÄÖ]+)\-([0-9]+)$/$1$2/g;
+	  $apukommentti = "(C-rypäs)";
+	  if ( $tmp =~ /[bcdfghjklmnpqrstvwxz].*?[BCDFGHJKLMNPQRSTVWXZ]/ ) {
+	      $tmp = yksitellen($tmp, 1, 0); 
+	  }
+	  else { $tmp = yksitellen($tmp, 0, 0); } 
+      }
+      # entäs "s." jne. this one is heavily under suspicion...
+      elsif ( $tmp =~ /^[A-ZÅÄÖa-zåäö]+\.?$/ ) {
+	  $tmp =~ s/\.$//;
+	  $tmp = yksitellen($tmp, 0, 0); # 3rd doesn't matter
+      }
+      elsif ( $tmp =~ /:/ ) {
+	  my $left = $`; 
+	  my $right = $'; #';
+
+	  # hack...
+	  # viiva pois KU-68:sta
+	  $left =~ s/^([A-ZÅÄÖ]+)\-([0-9]+)$/$1$2/g;
+
+	  $muoto = mika_muoto($right);
+	  # print STDERR "** $muoto **";
+
+	  # kirjainkoosta ei välitetä, jos merkit ovat
+	  if ( $left =~ /^[A-ZÅÄÖ]+$/ || # kokonaan isoja
+	       $left =~ /^[A-ZÅÄÖ]?[a-zåäö]+$/ || # vain max. iso alkukirjain
+	       $left !~ /[a-zåäö]/ || # vain numeroita ja pieniä
+	       $left !~ /[A-ZÅÄÖ]/ ) { # vain numeroita ja isoja
+	      # 3M:n => kolmeämmän, EI kolmeisoämmän...
+	      $tmp = yksitellen($left, 0, 1);
+	  }
+	  else {
+	      $tmp = yksitellen($left, 1, 1);
+	  }
+	  $apukommentti = "head:tail";
+      }
+      if ( $tmp eq $pintamuoto[15] ) {
+	  print STDERR " \"$pintamuoto[15]\" not modified!\n";
+	  die();
+      }
+      if ( $verbose ) {
+	  print STDERR " $pintamuoto[15] => $tmp ($kommentti$apukommentti)\n"; 
+      }
+      return $tmp;
+  }   
+  # AGREE-ABBR: ns., ym.
+  if ( $tyyppi eq "AGREE-ABBR" ) {
+    my $tmp = $agree_abbr{$pintamuoto[15]};
+    if ( $language eq "fin" ) {
+      if ( $agreement_number eq "PL" ) {
+	$tmp .= "I";
+      }
+      $tmp = katenoi_sija($tmp, (sijamuoto($agreement_case)));
+    }
+    if ( $verbose ) { print STDERR " $tmp "; }
+    my $vasen = $tmp;
+    $vasen =~ s/(^|[_ ])[^_ ]*$//;
+    $tmp =~ s/^.*[ _]//;
+    $tmp = pintamuotoon($tmp);
+    #$vasen =~ s/_/ /g;
+    if ( $verbose ) {
+      print STDERR " => $vasen $tmp ($agreement_number $agreement_case)\n";
+    }
+    return "$vasen $tmp";
+  }
+
+
+  # COUNT-ABBR
+  # mittäyksikkölyhenne (kg, MHz ...)
+  if ( $tyyppi eq "COUNT-ABBR" ) {
+    $apukommentti = " ABBR " . kaanteissijamuoto($muoto) ." ";
+    # jos edessä on numero (ei '1') niin muutetaan PTV oletukseksi...
+    # "2 markkaa" ei "2 markka"
+    if ( $pintamuoto[14] ne "1" &&
+	 onko_numero($pintamuoto[14]) &&
+	 $muoto == 1 ) { $muoto = 2; }
+    my $tmp = mittalyhenne($pintamuoto[15]);
+    $apukommentti = " ABBR " . kaanteissijamuoto($muoto) ." ";
+    if ( $verbose ) { print STDERR " " . $pintamuoto[15] . " => " . $tmp . " ($kommentti$apukommentti)\n"; }
+    return $tmp;
+  }
+
+  # DD
+  if ( $tyyppi eq "DD" ) {
+    my $dd = $pintamuoto[15];
+    $dd =~ s/\.//;
+    $perusluku = 0; # järjestysluku
+    return taivuta_numero($dd);
+  }
+  # DDMM
+  if ( $tyyppi eq "DDMM" ) {
+    my ($dd, $mm) = split(/\./, $pintamuoto[15]);
+    $perusluku = 0;
+    # selvitetään kuuluuko pariin
+    $dd = taivuta_numero($dd);
+    
+    if ( $kuunum == 1 ) { $mm = taivuta_numero(katenoi_sija($mm, 2)); }
+    else { $mm = kuukausi($mm) . "ta"; }
+    if ( $verbose ) { print STDERR " $pintamuoto[15] => $dd $mm\n"; }
+    return "$dd $mm";
+
+  }
+  # DDMMYY
+  if ( $tyyppi eq "DDMMYY" ) {
+    my ($dd, $mm, $yy) = split(/\./, $pintamuoto[15]);
+    $perusluku = 0;
+    ## DAY
+    $dd = taivuta_numero($dd);
+    ## MONTH
+    if ( $kuunum == 1 ) { $mm = taivuta_numero(katenoi_sija($mm, 2)); }
+    else { $mm = kuukausi($mm) . "ta"; }
+    ## YEAR
+    $muoto = 1;
+    $perusluku = 1;
+    $yy = taivuta_numero($yy);
+    if ( $verbose ) {
+      print STDERR "  $pintamuoto[15] => $dd $mm $yy\n";
+    }
+    return "$dd $mm $yy";
+
+  }
+  # DIGIT, LSEQ,
+  # maybe I should defife class "PHONE" which would undestand "+358" etc.
+  # digit can handle suffix as in "3210:n"
+  if ( $tyyppi eq "DIGIT" || 
+       $tyyppi eq "LSEQ" ) {
+    my $policy = 0;
+    
+    if ( $verbose ) { print STDERR " $alkuperainen => "; }
+    my ( $left, $right );
+    if ( $alkuperainen =~ /:/ &&
+	 $alkuperainen !~ /:.*:/ ) {
+	( $left, $right ) = split(/:/, $alkuperainen);
+    }
+    else {
+	$left = $alkuperainen;
+    }
+    if ( $right ) { 
+	$muoto = mika_muoto($right);  # hae sijamuoto, jos tarvis
+	# jos sijamuotoa ei löytynyt (LSEQ ei edellytä)
+	if ( $muoto == 0 ) { 
+	    $left .= ":" . $right; 
+	    $muoto = 1;
+	}
+    }
+
+    if ( $verbose ) { print STDERR yksitellen($left, 0, 0) . "($kommentti)\n"; }
+    return yksitellen($left, 0, 0);
+  }
+  # EMAIL
+  if ( $tyyppi eq "EMAIL" ) {
+    if ( $verbose ) { print STDERR " $alkuperainen => " . lavenna_email($alkuperainen) . "($kommentti)\n"; }
+    return lavenna_email($alkuperainen);
+  }
+
+
+  # INT
+  if ( $tyyppi eq "INT" ) {
+    my $etumerkki = "";
+    if ( $verbose ) { print STDERR " $alkuperainen => "; }
+    if ( $alkuperainen =~ s/^\-// ) { $etumerkki = "miinus "; }
+    if ( $alkuperainen =~ s/^\+// ) { $etumerkki = "plus "; }
+    if ( $alkuperainen =~ s/^±// )  { $etumerkki = "plus-miinus "; }
+    
+    if ( $verbose ) { print STDERR $etumerkki . taivuta_numero($alkuperainen) . " ($kommentti$apukommentti)\n"; }
+    return $etumerkki . taivuta_numero($alkuperainen);
+  }
+  # LSEQ: ks. DIGIT
+
+  # LTS: ks. PARTIAL-REPLACEMENT
+
+  # NUMERO
+  if ( $tyyppi eq "NUM" ) {
+    my $etumerkki = "";
+    if ( $verbose ) { print STDERR " " . $alkuperainen . " => "; }
+    if ( $alkuperainen =~ s/^\-// ) { $etumerkki = "miinus "; }
+    if ( $alkuperainen =~ s/^\+// ) { $etumerkki = "plus "; }
+    if ( $alkuperainen =~ s/^±// ) { $etumerkki = "plus-miinus "; }
+    if ( $verbose ) { print STDERR $etumerkki . taivuta_numero($alkuperainen) . " ($kommentti$apukommentti)\n"; }
+    return $etumerkki . taivuta_numero($alkuperainen);
+  }
+  # kielikohtainen :(
+  if ( $tyyppi eq "NUM-SUFFIX1" ) {
+    my $lopputulos = num_suffix1($alkuperainen);
+    if ( $alkuperainen =~ /^\d+(,\d+)?\-?$/ ) { # parin eka osa: 1 - 6-luokkalainen (häntä liimattu num_suffix1-funktiossa)
+      $lopputulos =~ s/ \-?$//;
+    }
+    $lopputulos =~ s/ +/ /g;
+    if ( $verbose ) { print STDERR " $alkuperainen => $lopputulos ($kommentti$apukommentti)\n"; }
+    return $lopputulos;
+}
+  if ( $tyyppi eq "ORD" ) {
+      if ( $verbose ) { print STDERR " $alkuperainen => "; }
+      $perusluku = 0; # set cardinal number on
+      $alkuperainen =~ s/\.$//;
+      $alkuperainen = taivuta_numero($alkuperainen);
+      if ( $verbose ) { print STDERR "$alkuperainen ($kommentti$apukommentti)\n"; }
+      return $alkuperainen;
+  }
+
+
+  if ( $tyyppi eq "PARTIAL-REPLACEMENT" || $tyyppi eq "LTS" ) {
+    my $lopputulos = $alkuperainen;
+    my $uusi = my $wanha = $arg;
+    $wanha =~ s/\"\)TO.*//;
+    $uusi =~ s/^.*?\"\)TO\(\"//;
+    $uusi =~ s/\"\)$//;
+
+    eval "\$lopputulos =~ s/$wanha/$uusi/g;"; # pitää olla /g tack LIMBON
+    # print STDERR "s/$wanha/$uusi/g;\t$alkuperainen\t=> $lopputulos\n";
+    if ( $verbose ) {  print STDERR " $alkuperainen => $lopputulos\n";  }
+    return $lopputulos;
+  }
+
+  # REPLACEMENT
+  # selvinnee ilman erillistä LIMBO-viritystä
+  if ( $tyyppi eq "REPLACEMENT" ) {
+    if ( $verbose ) { print STDERR " \"$alkuperainen\" => \"$arg\" ($kommentti)\n"; }
+    return $arg;
+  }
+
+
+  if ( $tyyppi eq "ROMAN" ) {
+      # switched numtype to ordinal already in recognition phase.
+      # arguments can shift this back to cardinal also rec phase
+      if ( $verbose ) { print STDERR " \"$alkuperainen\" => \"" . taivuta_numero(roomalainen($alkuperainen)) . "\" ($kommentti)\n"; }
+      return taivuta_numero(roomalainen($alkuperainen));
+  }
+
+  if ( $tyyppi eq "TIME" ) {
+    if ( $verbose ) { print STDERR " \"$alkuperainen\" => \""; }
+    # urheilutulos, tms.
+    if ( $alkuperainen =~ /^(\d+\.)?\d+\.\d+,\d+$/ ) {
+	my $osat = "";
+	while ( $alkuperainen ne "" ) {
+	    my $osa = $alkuperainen;
+	    $osa =~ s/[\.,].*$//;
+	    $osat .= taivuta_numero($osa) . " ";
+	    $alkuperainen =~ s/^\d+($|\D)//;
+	}
+	$osat =~ s/\s+$//;
+	return $osat;
+    }
+    if ( $alkuperainen =~ /^([0-2]?[0-9])[\.:]([0-5][0-9])(\.?)$/ ) {
+	my $lhs = $1;
+	my $rhs = $2;
+	my $piste = "";
+	if ( $3 ) { $piste = " ."; } 
+
+	$lhs = taivuta_numero($lhs) . " ";
+	if ( $rhs =~ s/^0// ) { $lhs .= "nolla "; } # <= taipumaton osa
+	$lhs .= taivuta_numero($rhs) . $piste;
+	if ( $verbose ) { print STDERR $lhs  . "\" $kommentti)\n"; }
+	return $lhs;
+    }
+    if ( $verbose ) { print STDERR taivuta_numero($alkuperainen) . "\" $kommentti)\n"; }
+    return taivuta_numero($alkuperainen);
+  }
+  if ( $tyyppi eq "SAPI4-TAG" ) {
+    if ( $verbose ) { print STDERR " Adding tag: $arg\n"; }
+    if ( $tag[15] ) { $tag[15] .= " $arg"; }
+    else { $tag[15] = $arg; }
+    return;
+  }
+
+  if ( $tyyppi eq "URL" ) {
+    my $result = lavenna_URL($alkuperainen);
+    if ( $verbose ) { print STDERR " \"$alkuperainen\" => \"$result\" $kommentti"; }
+    return $result;
+
+  }
+
+  if ( $tyyppi eq "XML-ARGUMENT" ) {
+    if ( $verbose ) { print STDERR " Adding argument: $arg\n"; }
+    if ( $argument[15] ) { 
+	# varmistetaan ettei tieto tule kahteen kertaan
+        my $type = $arg;
+	$type =~ s/=.*$//;
+	unless ( $argument[15] =~ /(^| )$type=/ ) {
+	    $argument[15] .= " $arg"; 
+	}
+    }
+    else { $argument[15] = $arg; }
+    return;
+  }
+  if ( $tyyppi eq "XML-TAG" ) {
+    if ( $verbose ) {
+      print STDERR " Adding tag: $arg\n";
+    }
+    if ( $tag[15] ) { $tag[15] .= " $arg"; }
+    else { $tag[15] = $arg; }
+    return;
+  }
+  
+  if ( $tyyppi eq "YEAR" ) {
+    if ( $verbose ) { print STDERR " \"$alkuperainen\" => \""; }
+    if ( $language eq "fin" ) { $alkuperainen =~ s/^\-(\d\d)$/$1/; }
+    if ( $verbose ) { print STDERR taivuta_numero($alkuperainen) . "\" $kommentti)\n"; }
+    return taivuta_numero($alkuperainen);
+  }  
+
+  print STDERR "$tyyppi ";
+  #return "Puuttuva lavennussääntö: $tyyppi";
+  die();
+}
+
+
+
+
+###
+#
+# avaa_merkki(kirjain)
+#
+# saa syötteenään yhden merkin, joka lavennetaan
+sub avaa_merkki {
+  if ( $debug ) { print STDERR "$debug_depth avaa_merkki($_[0])\n"; }
+  if ( $language ne "fin" ) { die; }
+  my $merkki = $_[0];
+  if ( $merkki !~ /^.$/ ) { print STDERR "#$merkki#"; die(); } # väärän pituinen syöte...
+  my $isous = $_[1];
+  if ( !$isous ) { $isous = 0; }
+  my $prefix = "";
+  if ( $isous && $merkki =~ /[A-ZÅÄÖ]/ ) { $prefix = "iso-"; } 
+
+  # A-Z ja 0-9 pitää löytyä yleissanastosta, sillä ne voivat taipua!
+  $merkki =~ tr/a-z/A-Z/;
+  if ( $merkki =~ /^[A-Z0-9]$/ ) {
+    return $prefix . reformo($merkki);
+  }
+  if ( $merkki eq " " ) { return " "; }
+  
+  # KIELIKOHTAISET TAIPUVAT TÄHÄN (suomi: 'ä', 'å' ja 'ö')
+  
+  if ( $language eq "fin" ) {
+    $merkki =~ tr/åäö/ÅÄÖ/;
+    if ( $merkki eq "Å" ) { return $prefix . syvamuoto_pintamuotoon("ruotsalaiS") . " " .syvamuoto_pintamuotoon("oo"); }
+    if ( $merkki eq "Ä" ) { return $prefix . syvamuoto_pintamuotoon("ää"); }
+    if ( $merkki eq "Ö" ) { return $prefix . syvamuoto_pintamuotoon("öö"); }
+  }
+  else { print STDERR "Unsupported language ($language)!\n"; die(); }
+  # muut (taipumattomat)
+  if ( $yksittainen_merkki{$merkki} ) { return $yksittainen_merkki{$merkki}; }
+
+  # if acutes and graves havenät been declared in %yksittainen_merkki
+  # open them as orginary 
+  if ( $merkki =~ /^[ÀÁÂ]$/ ) { return &avaa_merkki("A", $isous); }
+  if ( $merkki =~ /^[àáâ]$/ ) { return &avaa_merkki("a", 0); }
+  if ( $merkki =~ /^[Ç]$/ ) { return &avaa_merkki("C", $isous); }
+  if ( $merkki =~ /^[ç]$/ ) { return &avaa_merkki("c", 0); }
+  if ( $merkki =~ /^[ÈÉÊË]$/ ) { return &avaa_merkki("E", $isous); }
+  if ( $merkki =~ /^[èéêë]$/ ) { return &avaa_merkki("e", 0); }
+  if ( $merkki =~ /^[ÌÍÎÏ]$/ ) { return &avaa_merkki("I", $isous); }
+  if ( $merkki =~ /^[ìíîï]$/ ) { return &avaa_merkki("i", 0); }
+  if ( $merkki =~ /^[Ñ]$/ ) { return &avaa_merkki("N", $isous); }
+  if ( $merkki =~ /^[ñ]$/ ) { return &avaa_merkki("n", 0); }
+  if ( $merkki =~ /^[ÒÓÔ]$/ ) { return &avaa_merkki("O", $isous); }
+  if ( $merkki =~ /^[òóô]$/ ) { return &avaa_merkki("o", 0); }
+  if ( $merkki =~ /^[ÙÚÛ]$/ ) { return &avaa_merkki("U", $isous); }
+  if ( $merkki =~ /^[ùúû]$/ ) { return &avaa_merkki("u", 0); }
+  if ( $merkki =~ /^[Üİ¾]$/ ) { return &avaa_merkki("Y", $isous); }
+  if ( $merkki =~ /^[üÿı]$/ ) { return &avaa_merkki("y", 0); }
+  if ( $merkki =~ /^[Ø]$/ ) { return &avaa_merkki("Ö", $isous); }
+  if ( $merkki =~ /^[ø]$/ ) { return &avaa_merkki("ö", 0); }				
+
+
+  if ( $merkki eq "\$" ) { die; return $yksittainen_merkki{"\$"}; } 
+   
+  #if ( $verbose ) { 
+  print STDERR "HUONO MERKKI: \"$merkki\"\n"; 
+  #}
+
+  #return "NIMEÄMÄTÖN MERKKI!"; # die();
+  
+  # unknown characters do nothing_
+  return "";
+
+}
+
+###
+#
+# desitaivu(desimaaliluku)
+#
+# taivuttaa desimaaliluvun
+# - pitäisi olla vain FI
+sub desitaivu {
+ if ( $language ne "fin" ) { print STDERR "Finnish-only function! "; die; }
+ if ( $debug ) { print STDERR "desitaivu(): $_[0]\n"; }
+ my $merkkijono = $_[0];
+ unless ( onko_liukuluku($merkkijono) ) { # a bit too generous...
+   return "Wrong type of arg to desitaivu()";
+   print STDERR "epäilyttävä syöte..."; die();
+ }
+ if ( $language eq "fin" ) {
+   my ( $kokonaiset, $vajaat ) = split(/,/, $merkkijono );
+   my $nollat ="";
+   # puolikkaat osoittautui huonoksi ideaksi,laita joskus globaalin
+   # muuttujan taakse...
+   if ( $kokonaiset eq "0" && $vajaat eq "5" ) { # puoli
+     return $numero[30][$muoto+$luku] ;
+   }
+   if  ( $kokonaiset eq "1" && $vajaat eq "5" ) { # puolitoista
+     return $numero[30][$muoto+$luku] . "toista";
+   }
+   else {
+      $kokonaiset = taivuta_numero($kokonaiset);
+      if ( $vajaat eq "5" ) {
+	return $kokonaiset . " ja " . $numero[30][$muoto+$luku];
+      }
+      # 5,00500 => 5,nolla_nolla_viisisataa, not
+      # 5,005 parempi
+      # 5,00 ei kuitenkaan muutu 5,0:ksi, kiitos
+      while ( $vajaat =~ /^..+0$/ ) { $vajaat =~ s/0$//; }
+      # jos pelkkiä nollia, niin vika nolla voi taipua, siksi $1: 
+      while ( $vajaat =~ s/^0(.)/$1/ ) { # nappa 5,005:n nollat
+	  $nollat .= "nolla ";
+      } 
+
+      if ( $vajaat ne "" ) { # <- oli muitakin kuin nollia
+	$vajaat = taivuta_numero($vajaat); # 5,nolla_nolla_viisi
+      }
+      return "$kokonaiset pilkku $nollat$vajaat";
+
+    }
+  }
+  else { print STDERR "Unsupported language."; die; }
+}
+
+# yrittää olla sekä 2.0 että 3.7... pelottavaa...
+sub FDG_postprocess {
+  if ( $verbose ) {
+    print STDERR "Conexor postprocessing...\n";
+  }
+
+  my $input_file = $_[0];
+  my $output_file = $_[1];
+  open(INPUT, "$HOME/tmp/$input_file");
+  open(OUTPUT, ">$HOME/tmp/$output_file");
+  my ( $count, $form, $base, $syntax, $morpho, $tmp);
+  $count = 0;
+  while(<INPUT>) {
+    chop();
+    # pienen ad hoc viritys...
+    s/\thevos\#voima\t/\thevosvoima\t/;
+    if ( /^\s*$/ ) { next; }
+    s/\t+$//;
+    if ( /^\t/ ) { $count++; }
+    else { 
+      $count = $_;
+      $count =~ s/\t.*$//;
+    }
+    if ( $count eq "0" ) { next; }
+    s/^\d*\t//;
+    
+    $form = $_;
+    $form =~ s/\t.*//;
+    s/^[^\t]*\t//;
+    if ( $form eq "<s>" || $form eq "<p>" ) { 
+      print OUTPUT "<utterance>\t<utterance>\n"; 
+      next;
+    }
+    
+    $base = $_;
+    $base =~ s/\t.*//;
+    $base =~ s/\#/_/g;
+    $base =~ s/\-\_ja\_/- ja /g; # Maa- ja metsätalousministeriö   maa-_ja_metsätalousministeriö
+    $base =~ s/\-\_/-/g;
+    $base =~ s/\_\-/\-/g; # Titanic-_museo => Titanic-museo
+    
+    s/^[^\t]*($|\t)//;
+    
+    $syntax = $_;
+    $syntax =~ s/\t.*//;
+    $syntax =~ s/main:>0/main/;
+    if ( $syntax =~ /:>\d+/ ) { 
+      $tmp = $syntax;
+      $tmp =~ s/^.*:>//;
+      $tmp = $tmp - $count;
+      if ( $tmp > 0 ) { $tmp = "+" . $tmp; }
+      $syntax =~ s/:>.*/:>/;
+      $syntax .= $tmp;
+    }
+    s/^[^\t]*\t//;
+    
+    $morpho = $_;
+    $morpho =~ s/\t/ \| /g;
+    if ( $morpho =~ /\|/ ) {
+      $morpho .= " ]";
+      $morpho = "[ " . $morpho;
+    }
+    
+    print OUTPUT "$form\t$base\t$syntax\t$morpho\n";
+  }
+  if ( !$www ) {
+      close (INPUT);
+      close (OUTPUT);
+  }
+}
+
+sub fin_fdg_text { 
+  if ( $verbose ) { print STDERR "Moving old corpus files...\n"; }
+  copy("$HOME/tmp/fdg-a", "$HOME/tmp/fdg-a.old"); 
+  copy("$HOME/tmp/fdg-b", "$HOME/tmp/fdg-b.old");
+  copy("$HOME/tmp/fdg-c", "$HOME/tmp/fdg-c.old");
+  copy("$HOME/tmp/fdg-d", "$HOME/tmp/fdg-d.old");
+  copy("$HOME/tmp/OUTPUT", "$HOME/tmp/OUTPUT.old");
+
+  preprocess_finnish1("input.txt", "fdg-a");
+  token2snt("fdg-a", "fdg-b");
+
+  # CHANGE THE FDG COMMAND (here: conexor-fdg) TO CORRESPOND TO YOUR
+  # LOCAL INSTALLATION:
+  my $host = `hostname`;
+  $host =~ s/\n//;
+  $host =~ s/\..*$//;
+  if ( $host eq "venus" ) {
+    if ( system("/opt/nonfree/conexor/fi/fdg/fi-fdg --text < $HOME/tmp/fdg-b > $HOME/tmp/fdg-c") != 0 ){ die"$!\n"; }
+  }
+  elsif ( $host eq "donner" ) {
+    if ( system("/proj/suopuhe/bin/conexor-fdg < $HOME/tmp/fdg-b > $HOME/tmp/fdg-c") != 0 ){ die"$!\n"; }
+  }
+  else {
+    die "You'll have to manually configure the path to FDG!\n";
+  }
+
+  FDG_postprocess("fdg-c", "fdg-d");
+
+  return "fdg-d";
+}
+
+sub fin_plain_text {
+  if ( $verbose ) { print STDERR "Moving old corpus files...\n"; }
+  # ota vanhoista kopiot, pitäskö tehdä vain debug/verbose-optiolla?
+  if ( !$www ) {
+      copy("$HOME/tmp/plain-a", "$HOME/tmp/plain-a.old");
+      copy("$HOME/tmp/plain-aa", "$HOME/tmp/plain-aa.old");
+      copy("$HOME/tmp/OUTPUT", "$HOME/tmp/OUTPUT.old");
+  }
+  # tee uudet
+  preprocess_finnish1("input.txt", "plain-a");
+  preprocess_finnish2("plain-a", "plain-aa");
+  if ( $www ) { return $IO2; }
+  return "plain-aa";
+}
+
+
+sub fin_twol_text {  
+  copy("$HOME/tmp/twol-b", "$HOME/tmp/twol-b.old"); 
+  copy("$HOME/tmp/twol-c", "$HOME/tmp/twol-c.old");
+  copy("$HOME/tmp/twol-d", "$HOME/tmp/twol-d.old");
+  copy("$HOME/tmp/twol-f", "$HOME/tmp/twol-f.old");
+  copy("$HOME/tmp/OUTPUT", "$HOME/tmp/OUTPUT.old");
+  
+  # PREPROSESSOINTI:
+  #if ( system("$HOME/bin/fin_tokenize1.perl $paramstring < $HOME/tmp/input.txt | $HOME/bin/fin_tokenize2.perl $paramstring | $HOME/bin/token-cleanup $paramstring > $HOME/tmp/twol-b") != 0 )  { die"$!\n"; }
+  preprocess_finnish1("input.txt", "twol-b");
+  preprocess_finnish2("twol-b", "twol-c");
+  # TWOLLAUS,
+  # CHANGE THE FINTWOL COMMAND (here: twol-r) TO CORRESPOND TO YOUR
+  # LOCAL INSTALLATION:
+  #`tr A-ZÅÄÖ a-zåäö < $HOME/tmp/twol-b | /site/twol/bin/twol-r -b -C\#_L /site/twol/lib/finn2k4.save > $HOME/tmp/twol-d`;
+  my $host = `hostname`;
+  $host =~ s/\n//;
+  $host =~ s/\..*$//;
+  if ( $host eq "donner.ling.helsinki.fi" ) {
+    if (system("/usr/bin/tr A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜİŞ a-zàáâãäöæçèéêëìíîïğñòóôõöøùúûüış < $HOME/tmp/twol-c | /site/twol/bin/twol-r -b -B\#_L /site/twol/lib/finn2k4.save > $HOME/tmp/twol-d") != 0 )  { die"$!\n"; } 
+  }
+  elsif ($host eq "venus" ) {
+    if (system("/usr/bin/tr A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÑÒÓÔÕÖØÙÚÛÜİŞ a-zàáâãäöæçèéêëìíîïğñòóôõöøùúûüış < $HOME/tmp/twol-c | /usr/local/contrib/bin/twol-r -b -B\#_L /usr/local/contrib/koskenni/twol/finn2k4.save > $HOME/tmp/twol-d") != 0 )  { die"$!\n"; } 
+  }  
+  else { die "TWOL Unknown host ($host)!\n"; }
+
+  TWOL_restore_cases("twol-d", "twol-c", "twol-f");
+
+  return "twol-f";
+}
+
+sub finnish {
+  my $ofile;
+  if  ( $tagger eq "fdg" )    { $ofile = fin_fdg_text(); }
+  elsif ( $tagger eq "twol" ) { $ofile = fin_twol_text(); }
+  else { $ofile = fin_plain_text(); }
+  main_loop($ofile); # hoitaa myös tulostuksen...
+
+}
+
+###
+#
+# formo()
+#
+# syvämuotojen testausmoodi.
+# kutsutaan komentoriviparametrin avulla:
+# unix_prompt$ lavennin.perl --mode=form
+sub formo {
+  print "\nAnna perusmuoto:";
+# jos syötettä, niin etsitään, muuten lopetaan, tästä tulle aliohjelma
+  my ( $line, $suba, $original);
+  while ( ($line = <STDIN>) !~ /^\s*$/ ) {
+    $line =~ s/\n//;
+    
+    if ( $line !~ /^\d+$/ ) { # ei numero
+      if ( onko_yleissanastossa($line) ) { # löytyy leksikosta
+	$suba = onko_yleissanastossa($line); 
+	print "\nSyvämuoto: $suba\n";
+      }
+      # ei löytynyt
+      else {
+	print "\nSyvämuotoa ei löytynyt leksikosta! Käytetään pintamuotoa!\n";
+	$suba = $line;
+      }
+      $line = 1;
+      $muoto = 1;
+      $original = $suba;
+      while ( $line < 15 ) {
+	$luku = 0;
+	$muoto = $line;
+	$suba = $original;
+	$suba = syvamuoto_pintamuotoon($suba);
+	print"\n$suba\t";
+	$luku = 14;
+	$muoto = $line;
+	$suba = $original;
+	$suba = syvamuoto_pintamuotoon($suba);
+	print"$suba";
+	$line++;
+      }
+    }
+    else { 
+      $original = $line;
+      $line = 1;
+      $perusluku = 1; 
+      while ( $line < 15 ) {
+	$luku = 0;
+	$muoto = $line;
+	$b = $original;
+	$b = taivuta_numero($b);
+	print"\n$b\t";
+	$luku = 14;
+	$b = $original;
+	$b = taivuta_numero($b);
+	print"$b";
+	$line++;
+      }
+    }
+    print"\nAnna perusmuoto:\n";
+  }
+  exit();
+}
+
+###
+#
+# get_home_direcory: decides the absolute path to lavennin/bin/.. 
+# 
+sub get_home_directory {
+    # only tested this with unix...
+
+    my $HOME;
+
+    # absolute path (unix)
+    if ( $0 =~ /^\// ) { $HOME = $0; }
+    # relative path: combine working directory (and path) and program name
+    elsif ( $0 =~ /^\.\// ) { # ./ohjelma
+	$HOME = cwd() . "/" . $'; #'
+    } 
+    # working directory
+    else { $HOME = cwd() . "/" . $0; }
+
+
+    $HOME =~ s/\/bin\/[^\/]+$//;
+    
+    if ( $verbose ) { print STDERR "Program directory: $HOME\n"; }
+    return $HOME;
+}
+
+
+sub hae_POS {
+  if ( $debug ) { print STDERR "hae_POS():\n"; }
+  #print STDERR "### $tagger, $pintamuoto[1]\n"; # die();
+  # TAGGER-INDEPENDENT
+  if ( $pintamuoto[1] =~ /^([,:;\(\)]|\.+|[!?]+)$/ ) {
+    return "punc";      
+  }
+  if ( $pintamuoto[1] =~ /^[A-ZÅÄÖ]$/ ) { return "char"; }
+  if ( !$morfo[1] ) { return "unknown"; }
+
+  # TAGGER-DEPENDENT STUFF
+  # PLAIN-TEXT
+  if ( $tagger eq "none" ) {
+    if ( $morfo[1] eq "C" ) {
+      return "coord";
+    }
+    if ( $morfo[1] eq "N" ) {
+      return "noun";
+    }
+    if ( $morfo[1] eq "PRON" ) {
+      return "pron";
+    }
+    if ( $morfo[1] eq "COP V" ) {
+      return "verb"; # IS THIS OKAY???
+    }
+  }
+  # TWOL
+  elsif ( $tagger eq "twol" ) {
+      # yhdyssanan alkuosien tulkinnat pois
+      while ( $morfo[1] =~ s/\" [^=\"]+ =/\" / ) {}
+
+      if ( $morfo[1] =~ /(^| )PROP($| N)/ &&
+	   $pintamuoto[1] =~ /^[A-ZÅÄÖ][a-zåäö]/ ) {
+	   return "prop";
+       }
+      if ( $morfo[1] =~ /(^| )A($| )/ ){
+	  return "adjective";
+      }
+      if ( $morfo[1] =~ /(^| )A\/N($| )/ ){
+	  return "adjective"; # .. milläs disambiguoit
+      }
+      if ( $morfo[1] =~ /(^| )AD\-A($| )/ ) { return "adverb"; }
+      if ( $morfo[1] =~ /(^| )ADV($| )/ ) { return "adverb"; }
+      
+      if ( $morfo[1] =~ /(^| )C($| )/ ) {
+	  return "conj";
+      }
+      if ( $morfo[1] =~ /(^| )DV\-MA($| )/ ){ # agenttipartisiippi
+	  return "adjective";
+      }
+      if ( $morfo[1] =~ /(^| )N($| )/ ) {
+	  return "noun";
+      }
+      if ( $morfo[1] =~ /(^| )NUM($| )/ ) {
+	  return "num";
+      }
+      if ( $morfo[1] =~ /(^| )PCP[12]($| )/ ){
+	  return "adjective";
+      }
+      if ( $morfo[1] =~ /(^| )PP($| )/ ){
+	  return "pp";
+      }
+      if ( $morfo[1] =~ /(^| )PSP($| )/ ){
+	  return "psp";
+      }
+      
+      if ( $morfo[1] =~ /(^| )PRON($| )/ ) {
+	  return "pron";
+      }
+      if ( $morfo[1] =~ /(^| )INF2($| )/ ) { # useimmiten oikein
+	  return "psp"; # parempi kuin verbi...
+      }
+      if ( $morfo[1] =~ /(^| )V($| )/  ) {
+	  return "verb"; # IS THIS OKAY???
+      }
+  }
+  # CONEXOR
+  elsif ( $tagger eq "fdg" ) {
+    my $wer = $morfo[1];
+    $wer =~ s/>//g;
+    if ( $wer =~ /(^| )ADV($| )/ ) { return "adverb"; }
+    if ( $wer =~ /(^| )A($| )/ ) { return "adjective"; }
+    if ( $wer =~ /(^| )CC($| )/ ) { return "conj"; }
+#    if ( $wer =~ /(^| )CC($| )/ ) { return "subj"; }
+    
+    if ( $wer =~ /(^| )N($| )/ ) { return "noun"; }
+    if ( $wer =~ /(^| )NUM($| )/ ) { return "num"; }
+    if ( $wer =~ /(^| )PRE($| )/ ) { return "pre"; }
+    if ( $wer =~ /(^| )PRON($| )/ ) { return "pron"; }
+    
+    if ( $wer =~ /(^| )PSP($| )/ ) { return "psp"; }
+    if ( $wer =~ /(^| )INF2($| )/ ) { return "psp"; }
+    if ( $wer =~ /(^| )V($| )/ ) { return "verb"; }
+    if ( $wer =~ /(^| )\&ADV($| )/ ) { return "adverb"; }
+    $wer =~ s/\s/_/;
+    $wer .= "XXX";
+    return $wer;
+  }
+  else {
+    print STDERR "Tagger type ($tagger) not supported yet!\n"; die();
+  }
+    
+  return "unknown";
+}
+
+
+###
+#
+# kaanteissijaluku(numero)
+#
+# muodon numeerinen arvo muodon merkkijonoarvoksi...
+# tee funktio joka korvaa kaanteissijamuoto(sijamuoto(ANALYYSI)):n tarpeen
+sub kaanteissijaluku {
+  if ( $debug ) { print STDERR "kaanteissijamuoto(): $_[0]\n"; }
+  my $numerokoodi = $_[0];
+  if ( $language eq "fin" ) {
+    if ( $numerokoodi == 0 ) { return "SG" ; }
+    if ( $numerokoodi == 14 ) { return "PL" ; }
+    return "???";
+  }
+  print STDERR "Unsupported language ($language)\n"; die();
+}
+
+###
+#
+# kaanteissijamuoto(numero)
+#
+# muodon numeerinen arvo muodon merkkijonoarvoksi...
+# tee funktio joka korvaa kaanteissijamuoto(sijamuoto(ANALYYSI)):n tarpeen
+sub kaanteissijamuoto {
+  if ( $debug ) { print STDERR "kaanteissijamuoto(): $_[0]\n"; }
+  my $numerokoodi = $_[0];
+  if ( $language eq "fin" ) {
+    if ( $numerokoodi == 0 ) { return "XXX" ; }
+    if ( $numerokoodi == 1 ) { return "NOM" ; }
+    if ( $numerokoodi == 2 ) { return "PTV" ; }
+    if ( $numerokoodi == 3 ) { return "GEN" ; }
+    if ( $numerokoodi == 4 ) { return "INE" ; }
+    if ( $numerokoodi == 5 ) { return "ELA" ; }
+    if ( $numerokoodi == 6 ) { return "ILL" ; }
+    if ( $numerokoodi == 7 ) { return "ADE" ; }
+    if ( $numerokoodi == 8 ) { return "ABL" ; }
+    if ( $numerokoodi == 9 ) { return "ALL" ; }
+    if ( $numerokoodi == 10 ) { return "ESS" ; }
+    if ( $numerokoodi == 11 ) { return "TRA" ; }
+    if ( $numerokoodi == 12 ) { return "INS" ; }
+    if ( $numerokoodi == 13 ) { return "ABE" ; }
+    if ( $numerokoodi == 14 ) { return "CMT" ; }
+    return 0;
+  }
+  print STDERR "Unsupported language ($language)\n"; die();
+}
+
+sub katenoi_sija {
+  if ( $debug ) { 
+      $debug_depth .= " ";
+      print STDERR "$debug_depth-katenoi_sija($_[0], $_[1]): "; 
+  }
+  my $syvamuoto = $_[0];
+  my $haluttu_sijamuoto = $_[1]; 
+  unless ( $haluttu_sijamuoto ) { die(); }
+  if ( $language eq "fin" ) {
+    if ( $haluttu_sijamuoto == 1 ) {}
+    elsif ( $haluttu_sijamuoto == 2 ) { $syvamuoto .= "QA"; }
+    elsif ( $haluttu_sijamuoto == 3 ) { $syvamuoto .= "Gn"; }
+    elsif ( $haluttu_sijamuoto == 4 ) { $syvamuoto .= "ssA"; }
+    elsif ( $haluttu_sijamuoto == 5 ) { $syvamuoto .= "stA"; }
+    elsif ( $haluttu_sijamuoto == 6 ) { $syvamuoto .= "HVn"; }
+    elsif ( $haluttu_sijamuoto == 7 ) { $syvamuoto .= "llA"; }
+    elsif ( $haluttu_sijamuoto == 8 ) { $syvamuoto .= "ltA"; }
+    elsif ( $haluttu_sijamuoto == 9 ) { $syvamuoto .= "lle"; }
+    elsif ( $haluttu_sijamuoto == 10 ) { $syvamuoto .= "nA"; }
+    elsif ( $haluttu_sijamuoto == 11 ) { $syvamuoto .= "ksi"; }
+    elsif ( $haluttu_sijamuoto == 12 ) { $syvamuoto .= "In"; }
+    elsif ( $haluttu_sijamuoto == 13 ) { $syvamuoto .= "ttA"; }
+    elsif ( $haluttu_sijamuoto == 14 ) { $syvamuoto .= "Ine"; }
+    else { die(); }
+    $syvamuoto =~ s/II/I/; # ks 12 ja 14 
+
+    if ( $debug ) {
+	$debug_depth =~ s/ //;
+	print STDERR "$syvamuoto\n";
+    }
+    return $syvamuoto; # nominatiivi
+  }
+  print STDERR "Unsupported language ($language)\n"; die();
+}
+
+###
+#
+# kommentit_pois()
+#
+# removes comments from the rule files and trims the input by removing extra
+# whitespaces
+sub kommentit_pois {
+  my $syoterivi = $_[0];
+  $syoterivi =~ s/^\s+//;
+  $syoterivi =~ s/\s*\n//; # hoitaa myös chop():n
+  $syoterivi =~ s/\t+/\t/g;
+  $syoterivi =~ s/ +/ /g;
+  # syoterivi =~ s/\s*=\s*/=/;
+  if ( $syoterivi =~ /^\#/ ) { return ""; }
+  $syoterivi =~ s/\#.*$//;
+  return $syoterivi;
+}
+
+# fixes for some more or less general typos
+sub korjaa_typot {
+  my $sana = $_[0];
+  # Bros.:n => Bros:n
+  $sana =~ s/\.:/:/g;
+  # typo-fix [a-z],\d => [a-z], \d
+  $sana =~ s/([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]),(\d)/$1, $2/g;
+  # 123.Sana => 123. sana
+  # (jos antaa tiedostolle nimen 1.Jpg niin kärsiköön...
+  $sana =~ s/(^| )(\d+\.)([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)($| )/$1$2 $3$4/g;
+  # normalisoi jenkkilainausmerkki
+  # nämä ovat ok oikeastaan vain tavallisessa tekstissä...
+  $sana =~ s/(\`\`|\'\'|\´\´)/\"/g;    # `` ''
+  $sana =~ s/[\`\´]/\'/g;
+  return $sana;
+}
+
+###
+#
+# kuukausi()
+#
+# palauttaa kuun nimen
+sub kuukausi {
+  if ( $debug ) { print STDERR "kuukausi(): $_[0]\n"; }
+  my $kuu = $_[0];
+  if ( $language eq "fin" ) {
+    # palauttaa numeroa vastaavan kuukauden
+    if ( $kuu == 1 ) { return "tammikuu"; }
+    if ( $kuu == 2 ) { return "helmikuu"; }
+    if ( $kuu == 3 ) { return "maaliskuu"; }
+    if ( $kuu == 4 ) { return "huhtikuu"; }
+    if ( $kuu == 5 ) { return "toukokuu"; }
+    if ( $kuu == 6 ) { return "kesäkuu"; }
+    if ( $kuu == 7 ) { return "heinäkuu"; }
+    if ( $kuu == 8 ) { return "elokuu"; }
+    if ( $kuu == 9 ) { return "syyskuu"; }
+    if ( $kuu == 10 ) { return "lokakuu"; }
+    if ( $kuu == 11 ) { return "marraskuu"; }
+    if ( $kuu == 12 ) { return "joulukuu"; }
+    return 0;
+  }
+  print STDERR "Unsupported language ($language)!\n"; die();
+}
+
+
+sub lavenna {
+  if ( $debug || $verbose) { print STDERR "lavenna($pintamuoto[15])\n"; }
+
+  if ( !$pintamuoto[15] && $pintamuoto[15] ne "0" ) { return; }
+
+  my ($lavennettava, $konteksti);
+  my $monesko = 0;
+  RULE:while ( $lavennussaantomaara > $monesko ) {
+    $monesko++;
+    # jos muutettu eikä "limbossa" niin lopeta:
+    if ( $korvattu[15] ) {
+      unless ( $komme[15] && $komme[15] =~ /LIMBO/ ) { last RULE; }
+    }
+    # tagi:
+    if ( $pintamuoto[15] =~ /^<\/?(suopuhe|utterance|speaker)>$/ ) { last RULE; }
+
+    # palauta oletusarvot muuttujille
+    $agree_case_count = 0; # montako kertaa perinyt sijamuodot
+    # $agree_number_count = 0; # not defined yet
+    # $agree_gender_count = 0; # not defined yet
+    $agreement_case = "NONE";
+    $agree_number_count = 0;
+    $agreement_number = "NONE";
+
+    $perusluku = 1;
+    $clitic = "";
+    $apukommentti = "";
+    $recursion = "no";
+    $etaisyys = 0;
+    $muoto = sijamuoto($default_case);
+    
+    ($lavennettava, $konteksti, $kommentti) = split(/_SEP_ /, $lavennussaanto[$monesko]);
+
+    $lavennettava =~ s/\s+$//;
+    #print STDERR "$lavennussaanto[$monesko])\n";
+    #print STDERR "$lavennettava;$pintamuoto[15] \n";
+
+    # jos tarkastateltava sana on määrittelyn mukainen,
+    # niin katso voiko laventaa
+    if ( voiko_laventaa($lavennettava) ) {
+      # print STDERR "DEBUG: $lavennussaanto[$monesko]\n";
+      # tarkasta sääntö kohta[15]
+      #print STDERR "Rule: $lavennussaanto[$monesko]\n";
+      #print STDERR " $lavennettava;$pintamuoto[15] \n";
+      #print STDERR "$konteksti\n";
+      my $status = 1;
+
+      if ( !$konteksti ) { $konteksti = ""; }
+      $konteksti =~ s/^\s+$//;
+      # tarkista ympäristö
+      while ( $konteksti ne "" && $status ) {
+	$konteksti =~ s/\s+$//;
+	my $osa = $konteksti;
+	$osa =~ s/ .*$//;
+	$konteksti =~ s/^\S+($| )//;
+	$status = sopiiko_kontekstiin ( $osa );
+      }
+      # jos meni läpi sekä vasemmalta että oikealta niin lavenna
+      if ( $status ) {
+	# print STDERR "$lavennussaanto[$monesko] onnistui.\n";
+	$etaisyys = 0;
+	while ( $status ) {
+	  if ( $korvattu[15+$etaisyys] &&
+	       $komme[15+$etaisyys] &&
+	       $komme[15+$etaisyys] =~ /LIMBO/ ) {
+	    my $tmp = avaa($lavennettava, $korvattu[15+$etaisyys]); 
+	    if ( $tmp &&
+		 $tmp ne $pintamuoto[15+$etaisyys] ) { 
+	      $korvattu[15+$etaisyys] = $tmp;
+	      $komme[15+$etaisyys] = $kommentti . $apukommentti;
+	    }
+	    else {} # { print STDERR $lavennettava; die; }
+	    #$korvattu[15+$etaisyys] = avaa($lavennettava, $korvattu[15+$etaisyys]);  
+	  }
+	  else {
+	    my $tmp = avaa($lavennettava, $pintamuoto[15+$etaisyys]); 
+	    if ( $tmp ) { 
+	      $korvattu[15+$etaisyys] = $tmp;
+	      $komme[15+$etaisyys] = $kommentti . $apukommentti;
+	    }
+	    else {} # { print STDERR $lavennettava; die; }
+	    #$korvattu[15+$etaisyys] = avaa($lavennettava, $pintamuoto[15+$etaisyys]);
+	  }
+	  # $komme[15+$etaisyys] = $kommentti . $apukommentti;
+	  # recursion
+	  $recursion =~ tr/A-Z/a-z/;
+	  if ( $etaisyys > 14 ||
+	       $etaisyys < -14 ) { $status = 0; }
+	  if ( $recursion eq "no" ) {
+	    $status = 0; 
+	  }
+	  # OIKEA REKURSIO
+	  #  -katsoo onko +1 välimerkki ja sopiiko +2
+	  elsif ( $recursion eq "right" ) {
+	    $etaisyys += 2;
+	    if ($pintamuoto[15+$etaisyys-1] =~ /^(,|ja|tai)$/ &&
+		voiko_laventaa($lavennettava) ) {
+	      $status = 1;
+	    }
+	    else { $status = 0; }
+	  }
+	  elsif ( $recursion eq "left" ) {
+	    #die();
+	    $etaisyys -= 2;
+	    if ($pintamuoto[15+$etaisyys+1] =~ /^(,|ja|tai)$/ &&
+		voiko_laventaa($lavennettava) ) {
+	      $status = 1;
+	    }
+	    else { $status = 0; }
+	  }
+	  # tuntematon rekursiosääntö => ei rekursiota
+	  else {
+	    if ( $verbose ) {
+	      print STDERR "Rekursiotyyppiä \"$recursion\" ei ole implementoitu!\n"; 
+	    }
+	    $status = 0;
+	  }
+	}
+	# muuta ?
+    
+      } # <- avataan päättyy
+
+    } # <- voidaanko pääsana avata
+  } # <- sääntösilmukkaa päättyy
+
+}
+
+sub lavenna_email {
+  my $osoite = $_[0];
+  $osoite =~ tr/A-Z/a-z/;
+  my ($nimi, $paikka ) = split(/\@/, $osoite); 
+  return tarkkuuslavenna($nimi, 0) . " " . avaa_merkki("@") . " " . tarkkuuslavenna($paikka, 0);
+}
+
+sub lavenna_URL {
+  # oikeasti osoite on case-insensitive, joten siitä vois skipata
+  # case-tiedot...
+  my $URL = $_[0];
+  $URL =~ s/^<(.*)>$/$1/;
+  my $keula = "";
+  if ( $URL =~ s/^http:\/\/// ) {
+    $keula = "hooteeteepee " . avaa_merkki(":") . " " .
+	avaa_merkki("/") . " " . avaa_merkki("/") . " ";
+  }
+  elsif ( $URL =~ s/^ftp:\/\/// ) {
+    $keula = "äfteepee " . avaa_merkki(":") . " " .
+	avaa_merkki("/") . " " . avaa_merkki("/") . " ";
+  }
+  $URL =~ s/^(([a-z]+\.)+)\//\L$1\E\//i; # muutetaan serveri pieneksi...
+  return $keula . tarkkuuslavenna($URL, 1);
+}
+
+###
+#
+# loppukahdennussana
+#
+# ks. kirjanen "Alkukahdennus" (fred Karlsson, Jaakko Lehtinen)
+# lisää: nominien yhdyssanat, imperatiivien monitulkintaisuus 
+sub loppukahdennussana {
+  if ( $debug ) { print STDERR "loppukahdenna():\n"; }
+  if ( $language ne "fin" ) { die(); }
+
+  if ( $tagger eq "none" ) {
+    my $sana = $pintamuoto[1];
+    if ( $sana !~ /[a-yäö]/ ) { next; }
+    $sana =~ tr/A-ZÄÖ/a-zäö/;
+    # yleisiä yksiselitteisiä alkukahdennussanoja
+    if ( $sana =~ /^(alue|oire|puolue|seurue|vene)$/ ) { return "yes"; }
+    return "no";
+  }
+
+  unless ( $pintamuoto[1] && $morfo[1] ) { return "no"; }
+  if ( $morfo[1] =~ /(FORGN|PROP|PRON|[123](SG|PL))/ ) { return "no"; }
+  if ( $pintamuoto[1] =~ /e$/ &&
+       $morfo[1] =~ /(^| )(A|N)($| )/ &&
+       $morfo[1] =~ /(^| )NOM($| )/ ) {
+      
+      if ( $perusmuoto[1] =~ /[bcfqz ]/i ) { return "no"; } # vieraat pois
+      if ( $perusmuoto[1] =~ /[ie]e$/ ) { return "no"; }
+      unless ( $perusmuoto[1] =~ /..../ ) { return "no"; }
+      if ( $perusmuoto[1] =~ /^(.*\-)?(apple|ateljee|avantgarde|avenue|empire|enterprise|gate|grape|itse|jade|jive|joule|karate|keystone|kolme|komedienne|kurre|line|nukke|pelle|polle|promille|reggae|saame|sake|savate|single|sprite|striptease|trade)$/i ) {
+	  return "no";
+      }
+      return "yes";
+  }
+
+  if ( $morfo[1] =~ /V PRES ACT SG3/ ) { return "no"; } # saa
+  if ( $morfo[1] =~ /(^| )V($| )/ &&
+       $morfo[1] =~ /(^| )IMPV?($| )/ && # IMP (fdg), IMPV (twol)
+       $morfo[1] =~ /(^| )SG2($| )/ &&
+       $morfo[1] !~ /(^| )(pA|\-PA)($| )/ ) { 
+    return "yes";
+  }
+       
+  return "no";
+}
+
+
+###
+#  
+# lue_agree_abbr()
+#
+# lukee listan lyhenteistä, jotka kongruoivat pääsanansa kanssa.
+sub lue_agree_abbr {
+  if ( $debug ) { print STDERR "lue_agree_abbr():\n"; }
+  # onko asetettu päälle
+  # lisää kieli
+  my $file = "$DATA_DIR/$language\_kongruoivat_lyhenteet.txt";
+  if ( -e $file ) {
+    if ( $verbose ) { print STDERR "Luetaan kongruoivat lyhenteet tiedot..."; }
+    open(SAANNOT, $file) or print STDERR "\n Konruoivat lyhenteet -tiedoston \"$file\" avaaminen ei onnistunut:\n $!\n";
+    # lukee säännöstön, voisi lisätä virheellisten sääntöjen tulkin...
+    while ( <SAANNOT> ) {
+      my $line = kommentit_pois($_);
+      if ( $line eq "" ) { next; }
+      if ( $line =~ /\t/ ) { # windows = vindous
+	my $surface_form = $line;
+	$line =~ s/\t.*$//;
+	$surface_form =~ s/^.*\t//;
+	$agree_abbr{$line} = $surface_form;
+      }
+      else { $agree_abbr{$line} = $line; } # maps to itself
+    }
+    close ( SAANNOT );
+  }
+  if ( $verbose ) { print STDERR "\n"; }
+  return;
+}
+
+###
+#
+#  lue_lavennussäännöt()
+#
+#  voisi lisätä virheelliseten sääntöjen tunnistimen
+#
+sub lue_lavennussaannot {
+  if ( $debug ) { print STDERR "lue_lavennussaannot():\n"; }
+  if ( $verbose ) { print STDERR "Luetaan lavennussäännöt..."; }
+  my $saannosto = 0;
+  my $file = "$DATA_DIR/$language\_lavennussaannot.txt";
+  open(SAANNOT, $file) or die "\n Kriittinen virhe: tiedoston \"$file\" avaaminen ei onnistunut:\n $!\n";
+  if ( $verbose ) { print STDERR "\n Virheellisten sääntöjen tunnistin puuttuu... Lisää?\n"; }
+  
+  
+  # lukee säännöstön, voisi lisätä virheellisten sääntöjen tulkin...
+  while ( <SAANNOT> ) {
+    my $line = kommentit_pois($_);
+    $line =~ s/ _SEP_ _SEP_ / _SEP_  _SEP_ /;
+
+    if ( $line !~ /\S/ ) { next; }
+    # tarkista separaattorien määrä
+    unless ( $line =~ / _SEP_ (.*) _SEP_ / ) { 
+	print STDERR "Suspicious Rule skipped ($line)\n";
+	next;
+    }
+ 
+    $saannosto++;
+    $lavennussaanto[$saannosto] = $line;
+  }
+  close ( SAANNOT );
+  if ( $verbose ) { print STDERR"Luettu ($saannosto sääntöä)!\n"; }
+  return $saannosto;
+}
+
+
+###
+#  
+# lue_merkit()
+#
+# lukee listan merkeistä ja niiden lavennuksista
+sub lue_merkit {
+  if ( $debug ) { print STDERR "lue_merkit():\n"; }
+  # onko asetettu päälle
+  # lisää kieli
+  my $file = "$DATA_DIR/$language\_merkit.txt";
+  if ( -e $file ) {
+    if ( $verbose ) { print STDERR "Luetaan merkkien nimet..."; }
+    open(SAANNOT, $file) or die "\n Kriittinen virhe: tiedoston \"$file\" avaaminen ei onnistunut:\n $!\n";
+    # lukee säännöstön, voisi lisätä virheellisten sääntöjen tulkin...
+    while ( <SAANNOT> ) {
+      # $_ = kommentit_pois($_);
+      chop();
+      if ( /^\s*$/ ) { next; } # ignore empty lines...
+ 
+      if ( /^\S\t[^\t]+$/ ) { 
+	my $surface_form = $_;
+	s/\t.*$//;
+	$surface_form =~ s/^.\t//;
+
+	$yksittainen_merkki{"$_"} = $surface_form;
+      }
+      elsif ( $verbose ) {
+	print STDERR " Huono sääntö tiedostossa $file: \"$_\"\n"; }
+    }
+    
+    close ( SAANNOT );
+  }
+  if ( $verbose) { print STDERR "\n"; }
+  return;
+}
+
+
+###
+#
+# lue_numerot()
+#
+# Lukee numeroilmauksessa käytettävien sanojen tiedot.
+# Viittaukset tehty käsin ja kohta pitää vain tietää
+# (katsoa tiedostosta)
+sub lue_numerot {
+  if ( $debug ) { print STDERR "lue_numerot():\n"; }
+# luetaan luvut ja tehdään niille taivutukset (nopea saatavuus)
+  my ($original, $tmp, $line);
+  if ( $verbose ) { print STDERR "Luetaan numerot"; }
+  my $file = $language . "_luvut.txt";
+  open(LUVUT, "$DATA_DIR/$file") or die ".\nKrittinen virhe: numerotiedostoa $file ei löytynyt: $_";
+  if ( $verbose ) { print STDERR " ja laaditaan niille taivutukset\n"; }
+  while (<LUVUT>) {
+    my $line = kommentit_pois($_);
+    if ( $line eq "" ) { next; }
+    if ( $verbose ) { print STDERR "."; }
+
+    chop();
+    $original = $_;
+    if ( $original =~ /!/ ) { next AA; } # TWOLin läpi salakuljetettu kommentti ( tee tälle jotakin)   
+    $tmp++;
+    $muoto = 1;  
+    while($muoto < 15 ) {
+      # yksiköt
+      $line = $original;
+      $line = katenoi_sija( $line, $muoto ); # liitetään sijamuoto
+      pintamuotoon( $line ); # rakennetaan pintamuoto
+      $numero[$tmp][$muoto] = $line; # talletetaan pintamuoto taulukkoon
+      # monikot
+      $line = $original . "I"; # monikon tunnus 'I'
+      $line = katenoi_sija( $line, $muoto );
+      pintamuotoon( $line );
+      $numero[$tmp][$muoto+14] = $line;
+      $muoto++;
+    }
+  }
+  close (LUVUT);
+  if ( $verbose ) { print STDERR "Valmis!\n"; }
+}
+
+###
+#
+# lue_paasanalista ()
+#
+# lukee listan sanoja, joiden edellä oleva numero kongruoi aina pääsanansa
+# kanssa.
+sub lue_paasanalista {
+  if ( $debug ) { print STDERR "lue_paasanalista():\n"; }
+  unless ( $language eq "fin" ) {
+    print STDERR "Not implemented yet!\n"; die();
+  }
+  # TWOL ja conexorkin
+  open(AGREE, "$DATA_DIR/$language\_kongruoivat_sanat.txt") or die "Listatiedostoa ei löytynyt!\n";
+  while ( <AGREE> ) {
+    # tr/A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ/a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüış/;
+    $_ = kommentit_pois($_);
+
+    if ( /^\s*$/ ) { next; }
+    $kongruoiva_sana{$_} = 1; # = $_;
+    if ( $language eq "fin" &&
+#	 $tagger eq "none" && # ei tarkistettu vielä :(
+	 onko_yleissanastossa($_) ) {
+      
+      # NOM
+      $luku = 0; $muoto = 1;
+      my $temppi = reformo($_);
+      #print STDERR "$temppi";
+      $nom{$temppi} = 1;
+      # PTV
+      $luku = 0; $muoto = 2;
+      $temppi = reformo($_);
+      $ptv{$temppi} = 1;
+      # GEN
+      $luku = 0; $muoto = 3;
+      $temppi = reformo($_);
+      $gen{$temppi} = 1;
+      # INE
+      $luku = 0; $muoto = 4;
+      $temppi = reformo($_);
+      $ine{$temppi} = 1;
+      # ELA
+      $luku = 0; $muoto = 5;
+      $temppi = reformo($_);
+      $ela{$temppi} = 1;
+      # ILL
+      $luku = 0; $muoto = 6;
+      $temppi = reformo($_);
+      $ill{$temppi} = 1;
+      # ADE
+      $luku = 0; $muoto = 7;
+      $temppi = reformo($_);
+      $ade{$temppi} = 1;
+      # ABL
+      $luku = 0; $muoto = 8;
+      $temppi = reformo($_);
+      $abl{$temppi} = 1;
+      # ALL
+       $luku = 0; $muoto = 9;
+      $temppi = reformo($_);
+      $all{$temppi} = 1;
+      # ESS
+      $luku = 0; $muoto = 10;
+      $temppi = reformo($_);
+      $ess{$temppi} = 1;
+      # TRA
+      $luku = 0; $muoto = 11;
+      $temppi = reformo($_);
+      $tra{$temppi} = 1;
+    }
+  }
+  close ( AGREE );
+  return;
+}
+
+
+
+###
+#
+# lueRC
+#
+# Lukee käyttäjän asetuksekset ja asettaa ne päälle, mun $_[0] == 1
+# muuten vain lukee ja antaa varoitukset... 
+# taitaa olla kieliriippumaton?
+# komentoriviparametrien tarkistus ei saa tapahtua täällä
+# ei tosin enää tapahdukaan...
+sub lueRC {
+  if ( $debug ) { print STDERR "lueRC():\n"; }
+  if ( $HOME !~ /^\// ) { # ei unix! 
+      if ( !$language ) { $language="fin"; }
+      if ( !$output )   { $output="plain-text"; }
+    return;
+  }
+  my $HO = `echo \$HOME`;
+  $HO =~ s/\n//;
+  my %set; # lista käytetyistä parametreistä
+
+  # lukee ~/.nswrc -tiedoston, jos sellainen on...
+  if ( -e "$HO/.nswrc" ) {
+    open(RC, "$HO/.nswrc");
+    if ( $verbose ) { print STDERR "Luetaan käyttäjän asetukset.\n"; }
+    while(<RC>) {
+      $_ = kommentit_pois($_);
+      s/\s*=\s*/=/;
+      if ( /^$/ ) { next; }
+
+      else {
+	my ( $a, $b );
+	($a, $b) = split(/=/);
+	$a =~ tr/a-z/A-Z/;
+	$b =~ tr/A-Z/a-z/; 
+	if ( $a eq "DIALECT" ||
+	     $a eq "FORCE" ||
+	     $a eq "LANGUAGE" ||
+	     $a eq "MIN_YEAR" ||
+	     $a eq "MAX_YEAR" ||
+	     $a eq "MONTH" ||
+	     $a eq "OUTPUT" ) {
+	  
+	  if ( $set{$a} ) {
+	    if ( $verbose ) { print STDERR " $a is set more than once in $DATA_DIR/.nswrc!\n"; }
+	  }
+	  $set{$a} = 1;
+
+	  if ( $a eq "DIALECT" ) {
+	    if ( $dialect ) {
+	      if ( $verbose ) {
+		print STDERR "RC-file overridden from the command line ($a).\n";
+	      }
+	    }
+	    else {
+	      $dialect = $b;
+	    }
+	  }
+
+	  elsif ( $a eq "FORCE" ) {
+	    if ( $force ) {
+	      if ( $verbose ) {
+		print STDERR "RC-file overridden from the command line ($a).\n";
+	      }
+	    }
+	    elsif ( $b eq "on" ) { $force = 1; }
+	    elsif ( $b eq "off" ) { undef($force); }	
+	    elsif ( $verbose ) { print STDERR " Illegal value for FORCE: $b.\n"; }
+	  }
+	  elsif ( $a eq "LANGUAGE" ) {
+	    if ( $language ) {
+	      if ( $verbose ) {
+		print STDERR "RC-file overridden from the command line ($a).\n";
+	      }
+	    }
+	    else { $language = $b; }
+	  }
+	  elsif ( $a eq "MIN_YEAR" ) {
+	    if ( onko_kokonaisluku($b) ) {
+	      $min_year = $b; 
+	    }
+	    elsif ( $verbose ) {
+	      print STDERR " Illegal value for MIN_YEAR ($b).\n The current minimum year is $min_year.\n";
+	    }
+	  }
+	  elsif ( $a eq "MAX_YEAR" ) {
+	    if ( onko_kokonaisluku($b) ) {
+	      $max_year = $b; 
+	    }
+	    elsif ( $verbose ) {
+	      print STDERR " Illegal value for MAX_YEAR ($b).\n The current maximum year is $max_year.\n";
+	    }
+	  }
+	  elsif ( $a eq "MONTH" ) {
+	    if ( $b eq "name" ) { 
+	      $kuunum = 0; 
+	    }
+	    elsif ( $b eq "number" ) {
+	      $kuunum = $1; 
+	    }
+	    elsif ( $verbose ) {
+	      print STDERR " Unknown value for MONTH: $b.\n";
+	    }
+	  }
+	  elsif ( $a eq "OUTPUT" ) {
+	    if ( $output ) {
+	      if ( $verbose ) {
+		print STDERR "RC-file overridden from the command line ($a).\n";
+	      }
+	    }
+	    elsif ( $b eq "xml" ||
+		    $b eq "sapi4" ||
+		 $b eq "plain-text" ) { # lailliset $outputit tähän
+	      $output = $b;	
+	    }
+	    elsif ( $verbose ) {
+	      print STDERR " Unknown value for OUTPUT: $b. The output format is now $output!\n"; die();
+	    }
+	  }
+	}
+	elsif ( $verbose ) {
+	  print STDERR " Unknown variable $a. Ignored!\n";
+	}
+      }
+    } # < while <RC>
+    
+    close(RC);
+
+    unless ( $min_year < $max_year ) {      
+      if ( $verbose ) {
+	print STDERR " Maximum year ($max_year) must be higher than the minimum year ($min_year)!\n Resetting to their default values.\n";
+      }
+      $min_year = $default_min_year;
+      $max_year = $default_min_year;
+    }    
+  }  
+  return;
+}
+
+###
+#
+# lue_sana
+#
+# reads one token with optional linguistic data from the input
+# to the 30th (last) slot of the window
+sub lue_sana {
+  if ( $debug ) { print STDERR "lue_sana(\"$_[0]\")\n"; }
+
+  my $line = $_[0];
+  $line =~ s/\s+$//;
+  undef $pintamuoto[30];
+  undef $perusmuoto[30];
+  undef $morfo[30];
+  undef $synta[30];
+  undef $komme[30];
+  undef $korvattu[30];
+  undef $argument[30];
+  undef $tag[30];
+
+  if ( $tagger eq "twol" ) {
+    if ( $line =~ /^<.*>$/ ) { # jos TAGI niin
+      $pintamuoto[30] = $perusmuoto[30] = $line;
+      die; # we shouldn't get here....
+      return;
+    }
+
+    $pintamuoto[30] = TWOL_riisu($line);
+    # print STDERR "LINE: $line\n";
+    $perusmuoto[30] = TWOL_perusmuodot($line);
+    # MORFOLOGINEN TULKINTA (TULKINNAT)
+    if ( $line =~ />\"\)/ ) { # <- jos ei analyysia niin 
+      return;
+    }
+    $line =~ s/^\S+\s+//;
+    $line =~ s/\)\s*$//;
+
+    # muokkaa 
+    $line =~ s/\)\(/ | /g;
+    $line =~ s/^\(/\[ /;
+    $line =~ s/\)$/ \]/;
+    $line =~ s/ +/ /g;
+
+    $morfo[30] = $line;
+  }
+  elsif ( $tagger eq "fdg" ) {
+    # conexor disambiguoi ?  [ &NH N SG GEN | &A> N SG GEN ]
+    ( $pintamuoto[30], $perusmuoto[30], $synta[30], $morfo[30] ) =
+	split(/\t/, $line);
+    # if ( $pintamuoto[30] =~ /^0$/ ) { die(); }
+    ## TEST STUFF
+#    print "A:$pintamuoto[30]\t";
+#    if ( $morfo[30] ) {
+#      #print STDERR "$line\n";
+#      print "B:$perusmuoto[30]\t";
+#    }
+#    else {
+#      print "B:$perusmuoto[30]\n";
+#    }      
+#    if ( $synta[30] ) {
+#      print "C:$synta[30]\t";
+#    }
+#    if ( $morfo[30] ) {
+#      print "D:$morfo[30]\n";
+#    }
+    # <- TEST STUFF
+  }
+  elsif ( $tagger eq "xml" ) { die ("Not implemented yet!"); }
+  elsif ( $tagger eq "none" ) {
+    $pintamuoto[30] = $line;
+    $morfo[30] = plain_text_POS($line);
+  }
+  else { die ("Unidentified tagger ($tagger)."); }
+  if ( $perusmuoto[30] &&
+       $perusmuoto[30] =~ /\_/ ) { # TEE TÄLLE MOODI
+    yhdyssanarajat(); # elokuvassa =>elo_kuvassa
+  }
+}
+
+
+sub lue_yleissanasto {
+  if ( $debug ) { print STDERR "lue_yleissanasto():\n"; }
+
+  if ( $verbose ) { print STDERR "Luetaan yleissanasto."; }
+  open(PARIT, "$DATA_DIR/$language\_yleissanasto.txt") or die "\nLeksikkoa ei löytynyt: $!\n";
+  while ( <PARIT> ) {
+    $_ = kommentit_pois($_);
+    if ( /^$/ ) { next; }
+    s/\t+/\t/;
+    my ($lhs, $rhs) = split(/\t/); #lhs="pintamuoto" (SG NOM), rhs="syvämuoto"
+    $yleissanasto{$lhs} = $rhs;
+  }
+  close ( PARIT );
+  if ( $verbose ) { print STDERR"...valmis!\n"; }
+}
+
+# luku() ei välitä moniselitteisyydestä, vaan valitsee
+# ensimmäisen sopivan luvun!!
+sub luku { 
+  if ( $debug ) { print STDERR "luku($_[0])\n"; }
+  my $tulkinta = $_[0];
+  
+  if ( $language eq "fin" ) {
+    if ( $tagger eq "twol" ) {
+      while ( $tulkinta =~ s/\"[A-Z0-9a-z ]+=/\" / ) {} # yhdyssanojen etuosien merkitykset pois
+    }
+    # muuttaa   ("kansan_edustaja"  N GEN SG = DV-JA N NOM SG)
+    # muotoon ("kansan_edustaja"  DV-JA N NOM SG)
+    if ( $tulkinta =~ /(^| )SG($| )/ ) { return 0; }
+    if ( $tulkinta =~ /(^| )PL($| )/ ) { return 14; }
+    return -1; # <- ei muotoa, 
+  }
+  else {
+    print STDERR "Unsupported language ($language)!\n"; die();
+  }
+}
+
+
+
+
+
+
+sub main_loop {
+  # tääkin olis kiva kirjoittaa uudelleen käyttämään shiftiä...
+
+  # ALUSTA IKKUNA (pakko tehdä sillä  määrittämätön ja '0' voi mennä sekaisin..
+  $pintamuoto[30] = "__HEADER__";
+  $perusmuoto[30] = "__HEADER__";
+  $morfo[30]      = "__HEADER__";
+  $synta[30]      = "__HEADER__";
+  $komme[30]      = "__HEADER__";
+  $korvattu[30]   = "__HEADER__";
+  $argument[30]   = "__HEADER__";
+  $tag[30]        = "__HEADER__";
+  my $ikkunasilmukka = 29;
+  while  ( $ikkunasilmukka > 0 ) {
+    $pintamuoto[$ikkunasilmukka] = $pintamuoto[$ikkunasilmukka+1];
+    $perusmuoto[$ikkunasilmukka] = $perusmuoto[$ikkunasilmukka+1];
+    $morfo[$ikkunasilmukka]      = $morfo[$ikkunasilmukka+1];
+    $synta[$ikkunasilmukka]      = $synta[$ikkunasilmukka+1];
+    $komme[$ikkunasilmukka]      = $komme[$ikkunasilmukka+1];
+    $korvattu[$ikkunasilmukka]   = $korvattu[$ikkunasilmukka+1];
+    $argument[$ikkunasilmukka]   = $argument[$ikkunasilmukka+1];
+    $tag[$ikkunasilmukka]        = $tag[$ikkunasilmukka+1];
+    $ikkunasilmukka--;
+  }
+  if ( $www ) { open (INPUT, $_[0]); }
+  else { open (INPUT, "$HOME/tmp/$_[0]"); }
+  while(<INPUT>) {
+    # <- READ INPUT
+    # pyöräytyä ikkunaa yksi vasempaan
+    my $ikkunasilmukka = 0;
+    while ( $ikkunasilmukka < 30 ) {
+      $pintamuoto[$ikkunasilmukka] = $pintamuoto[$ikkunasilmukka+1];
+      $perusmuoto[$ikkunasilmukka] = $perusmuoto[$ikkunasilmukka+1];
+      $morfo[$ikkunasilmukka]      = $morfo[$ikkunasilmukka+1];
+      $synta[$ikkunasilmukka]      = $synta[$ikkunasilmukka+1];
+      $komme[$ikkunasilmukka]      = $komme[$ikkunasilmukka+1];
+      $korvattu[$ikkunasilmukka]   = $korvattu[$ikkunasilmukka+1];
+      $argument[$ikkunasilmukka]   = $argument[$ikkunasilmukka+1];
+      $tag[$ikkunasilmukka]        = $tag[$ikkunasilmukka+1];
+      $ikkunasilmukka++;
+    }
+
+    # tulosta wanha sana (1)
+    tulosta(); 
+    # avaa jostain siltä väliltä (15)
+    lavenna(); 
+    # lue uusi sana (30)
+    lue_sana($_); 
+  }
+  # loput kamat:
+  $pintamuoto[31] = "__EOF__";
+  $perusmuoto[31] = "__EOF__";
+  $morfo[31]      = "__EOF__";
+  $synta[31]      = "__EOF__";
+  $komme[31]      = "__EOF__";
+  $korvattu[31]   = "__EOF__";
+  $argument[31]   = "__EOF__";
+  $tag[31]        = "__EOF__";
+  while ( $pintamuoto[2] ne "__EOF__" ) {
+      my $ikkunasilmukka = 0;
+      while ( $ikkunasilmukka < 31 ) {
+	  $pintamuoto[$ikkunasilmukka] = $pintamuoto[$ikkunasilmukka+1];
+	  $perusmuoto[$ikkunasilmukka] = $perusmuoto[$ikkunasilmukka+1];
+	  $morfo[$ikkunasilmukka]      = $morfo[$ikkunasilmukka+1];
+	  $synta[$ikkunasilmukka]      = $synta[$ikkunasilmukka+1];
+	  $komme[$ikkunasilmukka]      = $komme[$ikkunasilmukka+1];
+	  $korvattu[$ikkunasilmukka]   = $korvattu[$ikkunasilmukka+1];
+	  $argument[$ikkunasilmukka]   = $argument[$ikkunasilmukka+1];
+	  $tag[$ikkunasilmukka]        = $tag[$ikkunasilmukka+1];
+	  $ikkunasilmukka++;
+      }
+      
+      # tulosta wanha sana (1)
+      tulosta();
+      # avaa jostain siltä väliltä (15)
+      unless ( $pintamuoto[15] eq "__EOF__" ) { 
+	  lavenna();
+      }
+      
+  }
+
+
+  if ( $output eq "plain-text" ) { print"\n"; }
+  
+  # <== MAIN loppuu
+}
+
+sub merkkimuunnokset { 
+  my $xx = $_[0];
+  $xx =~ s/\&aacute;/á/g;    $xx =~ s/\&Aacute;/Á/g;
+  $xx =~ s/\&acirc;/â/g;     $xx =~ s/\&Acirc;/Â/g;
+  $xx =~ s/\&agrave;/à/g;    $xx =~ s/\&Agrave;/À/g;
+  $xx =~ s/\&aring;/å/g;     $xx =~ s/\&Aring;/Å/g;
+  $xx =~ s/\&tilde;/ã/g;     $xx =~ s/\&Atilde;/Ã/g;
+  $xx =~ s/\&auml;/ä/g;      $xx =~ s/\&Auml;/Ä/g;
+  $xx =~ s/\&aelig;/ä/g;     $xx =~ s/\&AElig;/Ä/g;
+  $xx =~ s/\&ccedil;/ç/g;    $xx =~ s/\&Ccedil;/Ç/g;
+  $xx =~ s/\&eth;/th/g;      $xx =~ s/\&ETH;/TH/g;
+  $xx =~ s/\&eacute;/é/g;    $xx =~ s/\&Eacute;/É/g;
+  $xx =~ s/\&ecirc;/ê/g;     $xx =~ s/\&Ecirc;/Ê/g;
+  $xx =~ s/\&egrave;/è/g;    $xx =~ s/\&Egrave;/È/g;
+  $xx =~ s/\&euml;/ë/g;      $xx =~ s/\&Euml;/Ë/g;
+  $xx =~ s/\&iacute;/í/g;    $xx =~ s/\&Iacute;/Í/g;
+  $xx =~ s/\&icirc;/î/g;     $xx =~ s/\&Icirc;/Î/g;
+  $xx =~ s/\&igrave;/ì/g;    $xx =~ s/\&Igrave;/Ì/g;
+  $xx =~ s/\&iuml;/ï/g;      $xx =~ s/\&Iuml;/Ï/g;
+  $xx =~ s/\&ntilde;/ñ/g;    $xx =~ s/\&Ntilde;/Ñ/g;
+  $xx =~ s/\&oacute;/ó/g;    $xx =~ s/\&Oacute;/Ó/g;
+  $xx =~ s/\&ocirc;/ô/g;     $xx =~ s/\&Ocirc;/Ô/g;
+  $xx =~ s/\&ograve;/ò/g;    $xx =~ s/\&Ograve;/Ò/g;
+  $xx =~ s/\&oslash;/ö/g;    $xx =~ s/\&Oslash;/Ö/g;
+  $xx =~ s/\&otilde;/õ/g;    $xx =~ s/\&Otilde;/Õ/g;
+  $xx =~ s/\&ouml;/ö/g;      $xx =~ s/\&Ouml;/Ö/g;
+  $xx =~ s/\&uacute;/ú/g;    $xx =~ s/\&Uacute;/Ú/g;
+  $xx =~ s/\&ucirc;/û/g;     $xx =~ s/\&Ucirc;/Û/g;
+  $xx =~ s/\&ugrave;/ù/g;    $xx =~ s/\&Ugrave;/Ù/g;
+  $xx =~ s/\&uuml;/ü/g;      $xx =~ s/\&Uuml;/Ü/g;
+  $xx =~ s/\&yacute;/ı/g;    $xx =~ s/\&Yacute;/İ/g;
+  $xx =~ s/\&yuml;/^?/g;
+  $xx =~ s/\&nbsp;/ /g; # hukkaa informaatiota :(
+  
+  $xx =~ s/\&gt;/>/g;        $xx =~ s/\&lt;/</g;
+  $xx =~ s/\&amp;/ \& /g; # keep this one the *very* last
+  return $xx;
+}
+
+# yrittää päättää ':':n jälkeisen sijamuodon
+# hio kliitti-tietoa... 
+# hAn voi olla sekä kliitti että lyhenteen genetiivi, veikataan genetiivia
+# lisää tyyppi (numero/lyhenne) (ks. myös akronyymi..)
+# pitäsi akronyymi-päätteet tunnistaa erikseen??
+# ttA tulkitataan PTV:ksi, ei ABE:ksi!
+sub mika_muoto {
+  if ( $debug ) { print STDERR "$debug_depth mika_muoto($_[0])\n"; }
+  $clitic = "";
+  $akronyymi = 0;
+  my ( $sijapaate ) = $_[0];
+  if ( $language eq "fin" ) {
+    if ( $sijapaate !~ /^[a-yäöA-YÄÖ]+$/ ) { return 0; }
+    if ( $sijapaate =~ s/kin$// ) { $clitic = "kin"; }
+    elsif ( $sijapaate =~ s/kaan$// ) { $clitic = "kaan"; }
+    elsif ( $sijapaate =~ s/kään$// ) { $clitic = "kään"; }
+    
+    ## omistusmuoto osana kliittiä ( DNA:nsa, DNA:nikin )
+    # X:nsa (voi olla SG+NOM/GEN PL+NOM, tässä SG
+    # pitäisikö olla erilleen
+    if ( $sijapaate =~ s/nsa$// )    { $clitic = "nsa" . $clitic; }
+    elsif ( $sijapaate =~ s/nsä$// ) { $clitic = "nsä" . $clitic; }
+    elsif ( $sijapaate =~ s/ni$// )  { $clitic = "ni"  . $clitic; }
+    elsif ( $sijapaate !~ /ksi$/ &&
+	    $sijapaate =~ s/si$// )  { $clitic = "si"  . $clitic; }
+    elsif ( $sijapaate =~ s/mme$// ) { $clitic = "mme" . $clitic; }
+    elsif ( $sijapaate =~ s/nne$// ) { $clitic = "nne" . $clitic; }
+
+    # NOM 1
+    if ( $sijapaate eq "t" ) { $luku = 14; return 1; } # <- monikoksi
+    if ( $sijapaate eq "s" ) { $perusluku = 0; return 1; } # <- järjestysluku
+    # PTV 2
+    # toi -ttA näyttää abessiivilta, mutta abessiivi numerosta ei toteutu
+    # joten 7:ttä, -myös -aa on ruma mutta ei kai haitallinen
+    # if ( $sijapaate eq "ttä" ||  $sijapaate eq "tta")
+    if ( $sijapaate eq "aa" || $sijapaate eq "ää" || $sijapaate eq "a" || 
+         $sijapaate eq "ta" || $sijapaate eq "tä" || $sijapaate eq "ä" ) {
+      return 2; 
+    }
+    if ( $sijapaate eq "iä" || $sijapaate eq "ia" ) { $akronyymi = 1; return 2; } 
+    # unohdetaan ABEssiivi:
+    if ( $sijapaate eq "tta" || $sijapaate eq "ttä" ) { return 2; } 
+    
+    # GEN 3
+    if ( $sijapaate eq "n" ) { return 3; }
+    if ( $sijapaate eq "in" ) { $akronyymi = 1; return 3; }
+    if ( $sijapaate eq "nnen" ) { $perusluku = 0; return 3; } # 6:nnen
+    # GEN 3 LYHENNE:
+    #if ( $sijapaate eq "han" || $sijapaate eq "hän" || # USA:han vs minähän
+    if ( $sijapaate eq "hen" || $sijapaate eq "hin" ||
+	 $sijapaate eq "hon" || $sijapaate eq "hun" ||
+	 $sijapaate eq "hyn" || $sijapaate eq "hön" ) { return 3; } # YK:hon
+    # GEN 3 AKRONYYMI:
+    if ( $sijapaate eq "in" ) { return 3; } # AKRONYYMI!!!
+    # INE 4
+    if ( $sijapaate eq "ssa" || $sijapaate eq "ssä" ) { return 4; } 
+    if ( $sijapaate eq "issa" || $sijapaate eq "issä" ) { $akronyymi = 1; return 4; } # AKRONYY
+    if ( $sijapaate eq "nnessä" || $sijapaate eq "nnessa" ) { $perusluku = 0; return 4; }
+    # ELA 5
+    if ( $sijapaate eq "sta"|| $sijapaate eq "stä" ) { return 5; }
+    if ( $sijapaate eq "ista" || $sijapaate eq "istä" ) { $akronyymi = 1; return 5; } # AKRONYY
+    if ( $sijapaate eq "nnesta" || $sijapaate eq "nnestä" ) { $perusluku = 0; return 5; }
+    # ILL 6: OY:öön
+  if ( $sijapaate eq "aan" || $sijapaate eq "een" || 
+       $sijapaate eq "iin" ||
+       $sijapaate eq "oon" ||
+       $sijapaate eq "ään" || $sijapaate eq "öön" ) { return 6; }
+  if ( $sijapaate eq "han" || $sijapaate eq "hän" || # USA:han vs minähän
+       $sijapaate eq "hen" || $sijapaate eq "hin" ||
+       $sijapaate eq "hon" || $sijapaate eq "hun" ||
+       $sijapaate eq "hyn" || $sijapaate eq "hön" ) { return 6; } # YK:hon
+  if ( $sijapaate eq "nteen" ) { $perusluku = 0; return 6; }
+    # ADE 7
+    if ( $sijapaate eq "lla" || $sijapaate eq "llä" ) { return 7; }
+    if ( $sijapaate eq "illa" || $sijapaate eq "illä" ) { $akronyymi = 1; return 7; } # AKRONYY
+    if ( $sijapaate eq "nnella" || $sijapaate eq "nnellä" ) { $perusluku = 0; return 7; }
+    # ABL 8
+    if ( $sijapaate eq "lta" || $sijapaate eq "ltä" ) { return 8; }
+    if ( $sijapaate eq "ilta" || $sijapaate eq "iltä" ) { $akronyymi = 1; return 8; } # AKRONYY
+    if ( $sijapaate eq "nnelta" || $sijapaate eq "nnelta" ) { $perusluku = 0; return 8; }
+    # ALL 9
+    if ( $sijapaate eq "lle" ) { return 9; }
+    if ( $sijapaate eq "ille" ) { $akronyymi = 1; return 9; } # AKRONYYMI
+    if ( $sijapaate eq "nnelle" ) { $perusluku = 0; return 9; }
+    # ESS 10
+    if ( $sijapaate eq "na" || $sijapaate eq "nä" ) { return 10; }
+    if ( $sijapaate =~ /^nten[äa]$/ ) { $perusluku = 0; return 10; }
+    # TRA 11
+    if ( $sijapaate eq "ksi" ) { return 11; }
+    if ( $sijapaate eq "nneksi" ) { $perusluku = 0; return 11; }
+
+    # CMT 14
+    if ( $sijapaate eq "ne" ) { return 14; }
+
+    if ( $clitic ne "" ) { return 1; } # NOM with clitic
+
+    # DEBUG:
+    if ( $sijapaate =~ /^(sti|o|ossa|seen|\d.*)$/ ) { return 0; }
+    if ( $verbose ) { 
+      print STDERR "$perusmuoto[15+$etaisyys] *$sijapaate*"; # die();
+    }
+    # <= END DEBUG
+    return 0;
+  }
+  print STDERR "Unsupported language ($language)!"; die();
+}
+
+###
+#
+# mittalyhenne(string lyhenne)
+#
+# v:tä ei uskalla aukikirjoittaa vuodeksi, käytään resepteissä jonain muuna?
+#
+# palauttaa onnistuessaan lyhenteen pintamuodon,
+# muuten itsensä
+#
+# tämä pitäisi korvata jollakin joka hakee lyhenteen perusmuodon
+# perusmuodon avulla haetaan piilomuoto (vrt. numeroitten taivutus)
+# ja konstruoidaan haluttu sääntö.
+#
+# nykyään ei tarvii olla TWOL:n ABBR!
+#
+# YRITÄÄ PITÄÄ AAKKOSJÄRJESTYS!
+sub mittalyhenne {
+  if ( $debug ) { print STDERR "mittalyhenne($_[0])\n"; }
+  my $lyhenne = $_[0];
+
+  # tarkistetaan onko lyhennemäinen pääte
+  if ( $lyhenne =~ /.:./ ) {
+    unless (  onko_paate($lyhenne) ) { return $_[0]; } # <=muuttaa sijamuodon!
+    $lyhenne =~ s/:.*$//;
+  }
+
+  # palautetaan muuttunut lyhenne
+  if ( $lyhenne eq "AUD" ) { return "Australian " . reformo("dollari") . $clitic; }
+  if ( $lyhenne eq "BEF" ) { return "Belgian " . reformo("frangi") . $clitic; }
+  if ( $lyhenne eq "brt" )   { return "bruttorekisteri" . reformo("tonni") . $clitic; }
+  if ( $lyhenne eq "C" )  { return reformo("celsius") . $clitic; }
+  if ( $lyhenne eq "CHF" ) { return "Sveitsin ". reformo("frangi") . $clitic; }
+  if ( $lyhenne eq "cl" ) { return "sentti" . reformo("litra") . $clitic; }
+  if ( $lyhenne eq "cm" ) { return reformo("sentti") . $clitic; }
+  if ( $lyhenne eq "dB" ) { return "desi" . reformo("beli") . $clitic; }
+  if ( $lyhenne eq "DEM" ) { return "Saksan " . reformo("markka") . $clitic; }
+  if ( $lyhenne eq "DKK" ) { return "Tanskan " . reformo("kruunu") . $clitic; }
+  if ( $lyhenne eq "dl" ) { return "desi" . reformo("litra") . $clitic; }
+  if ( $lyhenne eq "\$" ) { return reformo("dollari") . $clitic; }
+  # se on viron kruunu, ei eestin...
+  if ( $lyhenne eq "EEK" ) { return "Viron " . reformo("kruunu") . $clitic; }
+  if ( $lyhenne eq "EGP" ) { return "Egyptin " . reformo("punta") . $clitic; }
+  if ( $lyhenne eq "ESP" ) { return "Espanjan " . reformo("peseta") . $clitic; }
+  if ( $lyhenne eq "EUR" ) { return reformo("euro") . $clitic; }
+  if ( $lyhenne =~ /^e\.?Kr\.?$/ ) { return "ennen Kristusta"; }
+    if ( $lyhenne eq "FIM" ) { return "Suomen " . reformo("markka") . $clitic; }
+  if ( $lyhenne eq "fr" ) { return reformo("frangi") . $clitic; }
+  if ( $lyhenne eq "FRF" ) { return "Ranskan " . reformo("frangi") . $clitic; }
+  
+  if ( $lyhenne eq "g" || $lyhenne eq "gr" ) { return reformo("gramma") . $clitic; }
+  if ( $lyhenne eq "gal" ) { return reformo("gallona") . $clitic; }
+  # onhan skotlannissa omakin puntansa! skipataan isobritannia tieten
+  if ( $lyhenne eq "GBP" ) { return "Englannin " . reformo("punta") . $clitic; }
+  if ( $lyhenne eq "GRD" ) { return "Kreikan " . reformo("drakma") . $clitic; }
+  if ( $lyhenne eq "ha" ) { return reformo("hehtaari") . $clitic; }
+  if ( $lyhenne eq "hv" ) { return "hevos" . ("voima") . $clitic; }
+  if ( $lyhenne eq "hlö" ) { return reformo("henkilö") . $clitic; }
+  if ( $lyhenne eq "IEP" ) { return "Irlannin " . reformo("punta") . $clitic; }
+  if ( $lyhenne eq "ITL" ) { return "Italian " . reformo("liira") . $clitic; } 
+  if ( $lyhenne =~ /^j\.?Kr\.?$/ ) { return "jälkeen Kristuksen"; }
+  if ( $lyhenne eq "JPY" ) { return "Japanin " . reformo("jeni") . $clitic; }
+  if ( $lyhenne eq "kcal" ) { return "kilo" . reformo("kalori") . $clitic; }
+  if ( $lyhenne eq "kg" ) { return reformo("kilo") . $clitic; }
+  if ( $lyhenne eq "kk" ) { return reformo("kuukausi") . $clitic; }
+  if ( $lyhenne eq "km" || $lyhenne eq "KM" ) { return "kilo" . reformo("metri") . $clitic; }
+  if ( $lyhenne eq "kpl" ) { return reformo("kappale") . $clitic; }
+  if ( $lyhenne eq "kr" ) { return reformo("kruunu") . $clitic; }
+  if ( $lyhenne eq "kW" ) { return "kilo" . reformo ("watti") . $clitic; }
+  if ( $lyhenne eq "m" ) { return reformo("metri") . $clitic; }
+  if ( $lyhenne eq "m2" ) { return "neliö" . reformo("metri") . $clitic; }
+  if ( $lyhenne eq "m3" ) { return "kuutio" . reformo("metri") . $clitic; }
+  if ( $lyhenne eq "mg" ) { return "milli" . reformo("gramma") . $clitic; } 
+  if ( $lyhenne eq "MHz" ) { return "mega" . reformo("hertsi") . $clitic; }
+  if ( $lyhenne =~ /^milj\.?$/ ) {
+    # if ( $muoto == 1 ) { $muoto = 2; } # ei yksi miljoonaa kiitos
+    return reformo("miljoona"); # <- toivotaan parasta, 
+  }
+  if ( $lyhenne =~ /^min\.?$/ ) { return reformo("minuutti") . $clitic; }
+  if ( $lyhenne eq "MJ" ) { # erikoinen taivutus, hoidetaan cheatilla
+    #print STDERR "*$lyhenne*$muoto*";
+    if ( $luku == 14 || $muoto == 12 || $muoto == 14 ) {
+      return "mega" . pintamuotoon(katenoi_sija("jouleEI", $muoto));
+    }
+    else {
+      return "mega" . pintamuotoon(katenoi_sija("joule", $muoto));
+    }
+  }
+  if ( $lyhenne eq "mol" ) { return reformo("mooli") . $clitic; }
+  if ( $lyhenne eq "MPa" ) { return "mega".reformo("pascal") . $clitic; }
+  if ( $lyhenne eq "mpk" ) { return "meripenin" .reformo("kulma") . $clitic; }
+  if ( $lyhenne eq "mk" ) { return reformo("markka") . $clitic; }
+  if ( $lyhenne eq "mm" ) { return "milli" . reformo("metri") . $clitic; }
+  if ( $lyhenne eq "Mmk" || $lyhenne eq "mmk" ) {
+    if ( $muoto == 1 ) { $muoto = 2; }
+    return reformo("miljoona") . " " . reformo("markka");
+  }
+  if ( $lyhenne eq "mrd" ) { return reformo("miljardi"); }
+  if ( $lyhenne eq "ms" ) { return "milli".reformo("sekunti"); }
+  
+  if ( $lyhenne eq "MW" ) { return "mega" . reformo("watti") . $clitic; }
+  if ( $lyhenne eq "MWh" ) { return "megawatti". reformo("tunti") . $clitic; }
+  if ( $lyhenne eq "pros" || $lyhenne eq "%") { return reformo("prosentti") . $clitic; }
+  if ( $lyhenne eq "rkl" ) { return "ruoka" . reformo("lusikallinen") . $clitic; }
+  if ( $lyhenne eq "SEK" ) { return "Ruotsin " . reformo("kruunu") . $clitic; }
+  if ( $lyhenne eq "Smk" ) { return "Suomen " . reformo("markka") . $clitic; }
+  if ( $lyhenne eq "tkm" ) { return reformo("tuhat"). " kilo" . reformo("metri") . $clitic; }    
+  if ( $lyhenne eq "USD" ) { return "Yhdysvaltain ". reformo("dollari") . $clitic; }
+  if ( $lyhenne eq "v" ) { return reformo("vuosi") . $clitic; }
+  if ( $lyhenne eq "£" ) { return reformo("punta") . $clitic; }
+  if ( $lyhenne eq "ZAR" ) { return "Etelä-Afrikan ". reformo("randi") . $clitic; }
+  
+    return $_[0]; # palautetaan muuttumattomana...
+}
+
+###
+#
+# montako_lukua()
+#
+# laskee sanan sijamuotojen määrän, eli jos sana on monitulkintainen,
+# ei ehkä uskalleta avata..
+sub montako_lukua {
+  if ( $debug ) { print STDERR "montako_lukua(): $_[0]\n"; }
+  my $sana = $_[0];
+  if ( $tagger eq "none" && $language eq "fin" ) {
+    if ( montako_sijamuotoa($sana, "" ) == 1 ) { return 1; }
+    else { return -1; }
+  }
+  my $yhteensa = 0;
+  my $tulkinnat = $_[1];
+  if ( $language eq "fin" ) {
+    if ( $tagger eq "twol" ) {
+	while ( $tulkinnat =~ s/\" [^=\"]+ =/\" /g ) {} # yhdyssanojen etuosien merkitykset pois
+    }
+    if ( $tulkinnat =~ /(^| )SG(^| )/ ) { $yhteensa++; }
+    if ( $tulkinnat =~ /(^| )PL(^| )/ ) { $yhteensa++; } 
+    return $yhteensa;
+  }
+  else {
+    print STDERR "Unsupported language ($language)!\n"; die();
+  }
+}
+
+
+###
+#
+# montako_sijamuotoa()
+#
+# laskee sanan sijamuotojen määrän, eli jos sana on monitulkintainen,
+# ei ehkä uskalleta avata..
+sub montako_sijamuotoa {
+  if ( $debug ) { print STDERR "montako_sijamuotoa(): $_[0]\n"; }
+  my $yhteensa = 0;
+  my $sana = $_[0];
+  my $tulkinnat = $_[1];
+  if ( $language eq "fin" ) {
+    if ( $tagger eq "none" ) {
+      if ( $nom{$sana} ) { $yhteensa++; }
+      if ( $gen{$sana} ) { $yhteensa++; }
+      if ( $ptv{$sana} ) { $yhteensa++; }
+      if ( $ine{$sana} ) { $yhteensa++; }
+      if ( $ela{$sana} ) { $yhteensa++; }
+      if ( $ill{$sana} ) { $yhteensa++; }
+      if ( $ade{$sana} ) { $yhteensa++; }
+      if ( $abl{$sana} ) { $yhteensa++; }
+      if ( $all{$sana} ) { $yhteensa++; }
+      if ( $ess{$sana} ) { $yhteensa++; }
+      if ( $tra{$sana} ) { $yhteensa++; }
+      # remove the evil prefixes and try again...
+      if ( ! $yhteensa && 
+	   $sana =~ /^(desi|giga|hehto|kilo|mega|milli|nano|neliö|sentti)/ ) {
+	  return montako_sijamuotoa($'); #');
+      }
+      return $yhteensa;
+    }
+    if ( !$tulkinnat ) { return 0; }
+#    print STDERR "ERT $sana $tulkinnat\n";
+    if ( $tagger eq "twol" ) {
+	if ( $tagger eq "twol" ) {
+	    while ( $tulkinnat =~ s/\" [^=\"]+ =/\" /g ) {} # yhdyssanojen etuosien merkitykset pois
+	}
+
+    }
+    if ( $tulkinnat =~ /(^| )ESS($| )/ ) { $yhteensa++; }
+    if ( $tulkinnat =~ /(^| )INE($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )ELA($| )/ ) { $yhteensa++; }  
+    if ( $tulkinnat =~ /(^| )ILL($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )ADE($| )/ ) { $yhteensa++; }  
+    if ( $tulkinnat =~ /(^| )ABL($| )/ ) { $yhteensa++; }  
+    if ( $tulkinnat =~ /(^| )ALL($| )/ ) { $yhteensa++; }  
+    if ( $tulkinnat =~ /(^| )GEN($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )INS($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )ABE($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )PTV($| )/ ) { $yhteensa++; }  
+    if ( $tulkinnat =~ /(^| )TRA($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )CMT($| )/ ) { $yhteensa++; } 
+    if ( $tulkinnat =~ /(^| )NOM($| )/ ) { $yhteensa++; } 
+    return $yhteensa;
+  }
+  else {
+    print STDERR "Unsupported language ($language)!\n"; die();
+  }
+}
+
+###
+#
+# num_suffix1
+#
+# palauttaa suomenkielisen 10-sana yhdistelmän, jossa numero on lavennettu
+# oikein (kolme-kolmi-kolmos-kolmas-..)
+# pitäisikö tän osata palauttaa sanaluokkatieto
+# lisää kielikohtaisuus...
+sub num_suffix1 {
+  unless ( $language eq "fin" ) {
+    print STDERR "Unsupported language ($language)\n"; die();
+  }
+  if ( $debug ) { print STDERR "num_suffix1(): $_[0]\n"; }
+  my $numero = my $sana = $_[0];
+  my $vieras = 0;
+  $numero =~ s/\-.*$//;
+  $sana =~ s/^[^\-]+\-//;
+  my $sanb = $sana;
+  # 20- ja 30-vuotias
+  # 2-5-vuotias
+  my $dist = 0;
+  while( $pintamuoto[15+$etaisyys+$dist] !~  /^\d+(,\d+)?\-.+$/ ) {
+    $dist += 2;
+    if ( $dist > 15 ) { die; }
+    $vieras = 1;
+    $sanb = "";
+  }
+  $sana = $pintamuoto[15+$etaisyys+$dist];
+  $sana =~ s/^\d+(,\d+)?\-//;
+
+  # liukuluku
+  if ( $numero =~ /,/ ) {
+    return desitaivu($numero) . " " . $sanb;
+  }
+  #111111111111111111111111111111111111111111111111
+  if ( $numero eq "1" && 
+       ( $sana =~ /^divari/ ||
+	 $sana =~ /^divisioona/ ||
+	 $sana =~ /^kanava/ ||
+	 $sana =~ /^koppari/ ||
+	 $sana =~ /^olu[te]/ ||
+	 $sana =~ /^polttaja/ ||
+	 $sana =~ /^pesä/ ||
+	 $sana =~ /^vahti/ )) {
+   
+    return "ykkös-$sanb"; # tavutuksen takia
+  }
+
+  if ( $numero eq "1" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "eka$sanb";
+  }
+  #222222222222222222222222222222222222222222222222
+  if ( $numero eq "2" && $sana =~ /^kertai[ns]/ ) {
+    return "kaksin$sanb";
+  }
+  if ( $numero eq "2" && 
+       ( $sana =~ /^divisioona/ || $sana =~ /^divari/ ||
+	 $sana =~ /^kanava/ ||
+	 $sana =~ /^koppari/ ||
+	 $sana =~ /^polttaja/ ||
+	 $sana =~ /^pesä/ || 
+	 $sana =~ /^tuk?[ie]/ ||
+	 $sana =~ /^vahti/ )) {
+    return "kakkos$sanb";
+  }
+  if ( $numero eq "2" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "toka$sanb";
+  }
+  #333333333333333333333333333333333333333333333333
+  if ( $numero eq "3" &&
+       ( $sana =~ /^divisioona/ || $sana =~ /^divari/ ||
+	 $sana =~ /^koppari/ ||
+	 $sana =~ /^polttaja/ ||
+	 $sana =~ /^olu[et]/ ||
+	 $sana =~ /^pesä/ || 
+	 $sana =~ /^tie/ ) ) {
+    return "kolmos-$sanb"; # tavutus
+  }
+
+  if ( $numero eq "3" && $sana =~ /^kertai[ns]/ ) {
+    return "kolmin$sanb";
+  }
+  # 3-loikkaaja
+  if ( $numero eq "3" && 
+       ( $sana =~ /^loikk?a/ ||
+	 $sana =~ /^osai[ns]/ ||
+	 $sana =~ /^vuoti[ns]/ )) {
+    return "kolmi$sanb";
+  }
+  if ( $numero eq "3" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "kolmas$sanb";
+  }
+  #4444444444444444444444444444444444444444444444444
+  if ( $numero eq "4" &&
+       ( $sana =~ /^divari/ ||
+	 $sana =~ /^olu[et]/ ||
+	 $sana =~ /^tie/ ) ) {
+    return "nelos-$sanb";
+  }
+
+  if ( $numero eq "4" && $sana =~ /^kertai[ns]/ ) {
+    return "nelin$sanb";
+  }
+  if ( $numero eq "4" && 
+       ( $sana =~ /^ve[dt]o/ ||
+	 $sana =~ /^osai[ns]/ ||
+	 $sana =~ /^vuoti[ns]/ )) {
+    return "neli$sanb";
+  }
+  if ( $numero eq "4" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "neljäs-$sanb";
+  }
+  # 55555555555555555555555555555555555555555555555
+  if ( $numero eq "5" && $sana =~ /^kertai[ns]/ ) {
+    return "viisin$sanb";
+  }
+  if ( $numero eq "5" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "viides$sanb";
+  }
+  # 66666666666666666666666666666666666666666666666
+  if ( $numero eq "6" && $sana =~ /^kertai[ns]/ ) {
+    return "kuusin$sanb";
+  }
+  if ( $numero eq "6" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "kuudes$sanb";
+  }
+  # 77777777777777777777777777777777777777777777777777777777777
+  if ( $numero eq "7" && 
+       ( $sana =~ /^ottel(u|ij)/ || $sana =~ /^kertai[ns]/ )) { 
+    return "seitsen-$sanb"; # tavutus
+  }
+  if ( $numero eq "7" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "seiska$sanb";
+  }
+  # 007 James Bond
+  if ( $numero eq "007" ) {
+    return "nolla nolla seitsemän -" . $sanb;
+  }
+  # 8888888888888888888888888888888888888888888888888
+  if ( $numero eq "8" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "kasi$sanb";
+  }
+  # 9999999999999999999999999999999999999999999999999
+  if ( $numero eq "9" && $sana =~ /luokka_?lai[ns]/ ) {
+    return "ysi$sanb";
+  }
+  # 10-ottelu
+  # 10-henkinen
+  if ( $numero eq "10" && 
+       ( $sana =~ /^ottel(u|ij)/ || $sana =~ /^henki[ns]/ ||
+	 $sana =~ /^kertai[ns]/ )) { 
+    return "kymmen-$sanb"; # kym-men-ot-
+  }                        #       ^^^ 
+  
+  # 90-alkuinen
+  if ( $sana =~ /^alkui[ns]/ ) {
+    return yksitellen($numero, 0,0) . " -$sanb";
+  }
+  if ( $sana =~ /^standardi/ ) {
+    return yksitellen($numero, 0, 0) . " -$sanb";
+  }
+  if ( $sana =~ /^henge/ ) { # 2-hengen 
+    my $paate = $sana;
+    $paate =~ s/henge/henge:/;
+    if ( onko_paate($paate) ) {
+      $numero = taivuta_numero($numero);
+      return "$numero $sanb";
+    }
+  }
+
+  if ( $sana =~ /^(voitt?o|johto|osuma|maali|piste)/ ) {
+    $apukommentti = " (TULOS-KOTI)";
+    return taivuta_numero($numero) . " -$sanb";
+  }
+
+
+  # 20- ja 30-vuotiaat
+  if ( !$sana && $sana eq "" ) {
+    return taivuta_numero($numero);
+  }
+  # entä "v" (10-v.) ja vastaavat... (tuomitaan virheeksi: kuulija kärsiköön!)
+  return taivuta_numero($numero) . "-$sanb";
+
+}
+
+###
+#
+# onko_DD()
+#
+# kertoo voiko luku olla päiväys, jossa päivän ja kuun määrä mukana
+sub onko_DD {
+  if ( $debug ) { print STDERR "$debug_depth onko_DDMM($_[0])\n"; }
+  my $dd = $_[0];
+
+  if ( $language eq "fin" ) {
+      return ( $dd =~ /^(0?[1-9]|[12][0-9]|3[01])\.$/ );
+  }
+  die("Language diffivulties ($language)! Exiting...");
+  return 0;
+}
+
+###
+#
+# onko_DDMM()
+#
+# kertoo voiko luku olla päiväys, jossa päivän ja kuun määrä mukana
+sub onko_DDMM {
+  if ( $debug ) { print STDERR "$debug_depth onko_DDMM($_[0])\n"; }
+  my $ddmm = $_[0];
+  if ( $language eq "fin" ) {
+
+    if ( $ddmm =~ /^(0?[1-9]|[12][0-9]|3[01])\.(0?1|0?3|0?5|0?7|0?8|10|12)\.$/ ){
+      return 1;
+    }
+    if ( $ddmm =~ /^(0?[1-9]|1[0-9]|2[0-8])\.0?2\.$/ ) { return 1; }
+    if ( $ddmm =~ /^(0?[1-9]|[12][0-9]|30)\.(0?4|0?6|0?9|11)\.$/ ) { 
+      return 1;
+    }
+    # "Oletko syntynyt 20.6?"
+    if ( $pintamuoto[$etaisyys+15+1] &&
+	 $pintamuoto[$etaisyys+15+1] =~ /^[\.\?\!]$/ &&
+	 ( $ddmm =~ /^(0?[1-9]|[12][0-9]|3[01])\.(0?1|0?3|0?5|0?7|0?8|10|12)$/ ||         $ddmm =~ /^(0?[1-9]|1[0-9]|2[0-8])\.2$/ ||
+	   $ddmm =~ /^(0?[1-9]|[12][0-9]|30)\.(0?4|0?6|0?9|11)$/ )) {
+      return 1;
+    }
+    return 0;
+  }
+  print STDERR "Language $language is not supported yet!"; die();
+}
+
+###
+#
+# onko_DDMMYY (string)
+#
+# katsoo onko $string laillinen DDMMYY merkintä kielessä
+sub onko_DDMMYY {
+  if ( $debug ) { print STDERR "onko_DDMMYY(): $_[0]\n"; }
+  if ( $language eq "fin" ) {
+    unless ( $_[0] =~ /^\d\d?\.\d\d?\..+$/ ) { return 0;}
+    my $ddmm = my $yy = $_[0];
+    $ddmm =~ s/^(\d+\.\d+.).*$/$1/;
+    $yy =~ s/^\d+\.\d+\.//;
+    if ( onko_DDMM($ddmm) &&
+	 ( onko_vuosi($yy) || $yy =~ /^\d\d$/ )) {
+      return 1;
+    }
+    return 0;
+  }
+  print STDERR "Language $language is not supported yet!"; die();
+}
+
+sub onko_email {
+  if ( $debug ) { print STDERR "onko_email(): $_[0]\n"; }
+  my $osoite = $_[0];
+
+  unless ( $osoite =~ /\@/ ) { return 0; }
+  my ($nimi, $paikka);
+  $osoite =~ tr/A-Z/a-z/; # case neutral
+  
+  $nimi = $osoite;
+  $nimi =~ s/\@.*$//;
+  $paikka = $osoite;
+  $paikka =~ s/^.*\@//;
+
+  if ( $nimi =~ /^([a-z]+[\.\-])*[a-z]+$/ ||
+       $nimi =~ /^([a-z0-9]+[_\-\.])*[a-z0-9]+$/ ) {
+    if ( $paikka =~ /^([a-z0-9]+\.)+[a-z]+$/ ) { return 1; }
+  }
+  return 0;
+}
+
+# onko järjestysluku
+sub onko_jarjestysluku {
+  if ( $debug ) { print STDERR "onko_jarjestysluku($_[0])\n"; }
+  my $jarj = $_[0];
+  if ( $language eq "fin" ) {
+    if ( $jarj !~ /^[1-9]\d*\.$/ ) { return 0; }
+    $jarj =~ s/0+$//; # nollat pois lopusta
+    if ( $jarj =~ /^[0-9]{1,5}\.$/ ) { return 1; }
+    return 0;
+  }
+  print STDERR "Language $language is not supported yet!"; die();
+}
+
+
+# onko kellonaika välitä 00.00 - 24.00 ja 01 - 24
+sub onko_kellonaika {
+  if ( $debug ) { print STDERR "$debug_depth onko_kellonaika(): $_[0]\n"; }
+  my $aika = $_[0];
+  if ( $language eq "fin" ) {
+    if ( $aika =~ /^(0?[1-9]|1[0-9]|2[1-4])$/ ||
+	 $aika =~ /^([01]?[0-9]|2[0-3])[\.:][0-5][0-9]$/ ||
+	 $aika eq "24.00" ) {
+      return 1;
+    } 
+    # H.MM.SS,xx
+    if ( $aika =~ /^([1-9]\d*\.)?[0-5]?[0-9]\.[0-5][0-9],\d\d?$/ ) {
+	return 1;
+    }
+    return 0;
+  }
+  else {
+    print STDERR "Unsupported language ($language)!\n"; die();
+  }
+}
+
+
+# kokonaislukuko ($luku, $tyyppi)
+# kokonaisluku ei ala nollalla (paitsi nolla)!
+sub onko_kokonaisluku {
+  if ( $debug ) { print STDERR "$debug_depth onko_kokonaisluku($_[0])\n"; }
+  my $numero = $_[0];
+  if ( $numero =~ /^[\-\+±]?([1-9]\d*|0)$/ ) {
+    return 1;   
+  }  
+  return 0;
+}
+
+
+# onko_liukuluku
+sub onko_liukuluku {
+  if ( $debug ) { print STDERR "$debug_depth onko_liukuluku($_[0])\n"; }
+  my $numero = $_[0];
+  if ( $numero =~ /^[\-\+±]?\d+,\d+$/ ) {
+    return 1;
+  } 
+  return 0;
+}
+
+sub onko_numero {
+  if ( $debug ) { print STDERR "$debug_depth onko_numero($_[0])\n"; }
+
+  if ( onko_kokonaisluku($_[0]) ||# kokonais
+       onko_liukuluku($_[0]) ) {  # float
+    return 1;
+  }
+  return 0;
+}
+
+
+###
+#
+# onko_paate(loppuosa)
+#
+# onko X:string osa "string" jonkun päätteen, luvun, kliitin tms. tunnus.
+sub onko_paate {
+  
+  if ( $debug ) { print STDERR "$debug_depth onko_paate($_[0])\n"; }
+  my $paate = $_[0];
+  $paate =~ s/^[^:]*($|:)//;
+  $muoto = mika_muoto($paate);
+  if ( $muoto == 0 ) { return 0; } # hylkäsi
+  if ( $muoto  == 1 &&
+       $luku   == 0 &&
+       $akronyymi == 0 &&
+       $clitic eq "" &&
+       $perusluku == 1 ) {
+    return 0; # mikään ei muuttunut
+  }
+  return 1;
+}
+
+###
+#
+# onko_sana uusi => DOKUMENTOIMATON
+# Täällä voi olla noita ñ-jutskia, ei muualla...
+sub onko_sana {
+  if ( $debug ) { print STDERR "$debug_depth onko_sana($_[0])\n"; }  
+  my $sanako = $_[0];
+  if ( !$sanako && $sanako !~ /./ ) { die; } 
+
+  # ===== nämä eivät ole sanoja   ===>
+  # -yksikirjaimiset:
+  if ( length($sanako) < 2 ) { return 0; }
+  # -laittomia klusterit:
+  if ( $sanako =~ /tk$/ ) { return 0; } # atk
+  # <==== nämä eivät olleet sanoja ====
+
+  
+  # varmat epäonnistujat
+  if ( $sanako =~ /[0-9\@]/ ) { return 0; }
+  if ( $sanako =~ /(^|\-)[bcdfghjlkmnpqrstvwxz]+($|\-)/i ) { return 0; }
+
+  # monisanaiset (Connexorin FDG harrastaa näitä)
+  if ( $sanako =~ /\s+/ ) {
+    my $le = $`;
+    my $ri = $'; #'
+    return ( onko_sana($le) && onko_sana($ri) );
+  }
+
+  if ( $sanako =~ /([aeiouyäö])\'([aeiouyäö])/ ) {
+    my $le = $` . $1; 
+    my $ri = $2 . $'; #' emacs mode trick
+    return ( onko_sana($le) && onko_sana($ri) );
+  }
+
+  ## poistetaan heittomerkin perästä tutut päätteet
+  $sanako =~ s/\'(a|aan|an|assa|h[aeiouyäö]n|ia|iin|il[lt][aäe]|in|is[st][aä]|ll[aeä]|llaan|lt[aä]|n|nsa|s|sit|seis[ts]a|seja|s[st][aä]|t|t[aä])$//;
+  my $jatka = 1;
+  while ( $jatka == 1 && $sanako ne "" ) {
+      # ($| ) koska conexorin voi tehdä monisanaisia tokeneita
+      # eikä voi enää tässä vaiheessa (ks. 10 riviä sitten)
+      $jatka = 0;
+      if ( $sanako !~ /\-[bcdfghjklmnpqrstvwxz]+$/ &&
+	   $sanako =~ s/\-[A-ZÅÄÖ]?[a-zåäö]+$// ) { $jatka = 1; }
+      elsif ( $sanako =~ s/^[dDO]\'([A-Z][a-z])/$1/ ) { $jatka = 1; }
+      elsif ( $sanako =~ s/^[lL]\'([aeiouyAEIOUY])/$1/ ) { $jatka = 1; }
+#    elsif ( $sanako =~ s/([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)\'(s?i)?(h[aeiouyäö]n|l[lt][aä]|lle|n|s|s[st][aä]|t|ta)$/$1/ ) { $jatka = 1; }
+      elsif ( $sanako =~ s/([Pp]ar|[Tt]äst|[Vv]ast|[Yy]ht)\'// ) { $jatka=1; }
+      # vierasperäisen pääte
+      elsif ( $sanako =~ s/([A-ZÅÄÖ]?[a-zåäö]+)\'(n|s)/$1/ ) { $jatka = 1; }
+      elsif ( $sanako =~ s/^Ma?c([A-Z])/$1/ ) { $jatka = 1; }
+      elsif ( $sanako =~ s/^[ae]l([A-Z])/$1/ ) { $jatka = 1; } # arabia elBaradei
+      # ETH puuttuu
+      elsif ( $sanako =~ s/^([A-ZÅÄÖ]?[a-zåäö]+)$// ) {} # voi lopettaa
+  }
+  if ( $sanako ne "" ) { return 0; } # ... ei ollut
+  return 1;
+}  
+###
+#
+# onko_URL(string)
+#
+# tarkistaa vastaako $_[0] allekirjoittaneen näkemystä URLista...
+sub onko_URL {
+  if ( $debug ) { print STDERR "$debug_depth onko_URL($_[0])\n"; }
+  my $url = $_[0];
+  my $domain = 0;
+  my $port = 0;
+  my $address = 0;
+  # poista mpi-kuin-merkit                                  )
+  $url =~ s/^<(.*)>$/$1/; 
+# poista protokolla (ei pakollinen, vrt. www.helsinki.fi )
+  $url =~ s/^(ftp|gopher|http):\/\///i; #
+  
+  # domain name 
+  # vähintään kaksi merkki kussakin osassa
+  if ( $url =~ s/^([A-Za-z\d\-]{2}\.)+[A-Za-z]{2,}// ) { $domain = 1; }
+  # IP-osoite
+  elsif ( $url =~ s/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}// ) { $domain = 1; }
+  else { return 0; } 
+  
+  # entäs portti
+  if ( $url =~ s/^:\d+// ) { $port = 1; }
+  
+  
+  # ei hakemistoa määritelty, eli onnistui :)
+  if ( $url eq "" || $url eq "/" ) { return 1; }
+  
+  # hakemisto on:
+  unless ( $url =~ s/^\/// ) { return 0; }
+
+  # kotihakemisto:
+	      if ( $url =~ s/^\~[a-z]{1,8}// ) {
+    if ( $url eq "" || $url eq "/" ) { return 1; }
+    unless ( $url =~ s/^\/// ) { return 0; }
+  }
+  
+  # muu hakemistopolku
+  if ( $url =~ /^([A-Za-z_\-0-9]+\/)*[A-Za-z\-_0-9]+(\.[A-Za-z_\-0-9]+)?$/ ||
+       $url =~ /^([A-Za-z_\-0-9]+\/)+$/){
+    return 1;
+  }
+
+  return 0;
+}
+
+
+###
+#
+# onko_tavu (tavu)
+#
+# kertoo hyväksyykö ohjelma $tavun yhdeksi tavuksi
+# ekan tavun alussa ja vikan lopussa voisi olla muitakin kombinaatioita?
+sub onko_tavu {
+  my $tavu = $_[0];
+  # SFääri
+  # kst = xt
+  if ( $tavu =~ /^(b[hjlr]|d[hjrsv]|f[jlr]|g[hjlnr]|h[j]|k[hjlnrsv]|khm|lj|m[jl]|nj|p[fhjlrs]|rh|rj|s[fhjklmnprtv]|sh[jmnrv]|sk[jr]|sp[lr]|str|t[hjrsv]|tsh|tsj|v[lr]|[bdfghjklmnprstv]?)[aeiouyäö]{1,2}(b[s]d[lr]|f[t]|g[hr]|h[t]|jd|k[t]|l[dfgkmnptv]|lsh||m[blnpt]|n[dfgkt]|nsh|p[ht]|r[bdfgklmnpstv]|s[fhkmpt]|t[hr]|kst|lsh|lsk|lth|ndl|ndr|ngh|ngt|nkt|nsk|nst|nth|rgh|rsh|rs[kt]|rth|str|thm?|tsh|[bdfghjklmnprstv])?s?$/i ) { return 1; }
+  if ( $debug ) { print STDERR "*$tavu*\n"; }
+  return 0;
+
+}
+
+# onko_vuosi ($luku, $tyyppi)
+# vuosiluku ei ala nollalla!
+sub onko_vuosi {
+  if ( $debug ) { print STDERR "$debug_depth onko_vuosi($_[0])\n"; }
+  my $vuosi = $_[0];
+  if ( $vuosi =~ /^[1-9]\d*$/ &&
+       $vuosi >= $min_year &&
+       $vuosi <= $max_year ) {
+    return 1;
+  }
+  if ( $language eq "fin" &&
+       $vuosi =~ /^\-\d\d$/ ) { # -99
+    return 1;
+  }
+  if ( $language eq "eng" &&
+       $vuosi =~ /\'\d\d$/ ) { # english: '99
+    return 1;
+  }
+  
+  return 0;
+}
+
+###
+#
+# onko_yleissanastossa(string)
+#
+# tarkistaa löytyykö merkkijono (=perusmuoto) merkkijonosta
+sub onko_yleissanastossa {
+  return $yleissanasto{$_};
+}
+
+sub pakkolavenna {
+    
+    if ( $korvattu[1] && $komme[1] !~ /LIMBO/ ) { return; }
+    # catch errors
+    if ( !$pintamuoto[1] && $pintamuoto[1] ne "0" ) { die; } 
+     # ei tarvitse tehdä pakkolavennusta
+    if ( $korvattu[1] && $komme[1] !~ /LIMBO/ ) { return; }
+
+    # preparations:
+    my ( $pikkukirjain, $alkuperainen);
+    if ( $komme[1] && $komme[1] =~ /LIMBO/ ){
+	$pikkukirjain = $alkuperainen = $korvattu[1];
+    }
+    else { $pikkukirjain = $alkuperainen = $pintamuoto[1]; }
+    if ( !$pikkukirjain && $pikkukirjain ne "0" ) { die; } 
+
+    # skip PUNCtuation
+    if ( $alkuperainen =~ /^(\.+|,|:|;|\"|\'|[!\?]+)$/ ||
+	 $alkuperainen =~ /^<.*>$/ ) {
+	return;
+    }
+
+    # reset defaults 
+    $perusluku = 1;
+    $muoto = sijamuoto($default_case);
+    $clitic = "";
+
+
+    # NUMERO
+    if ( onko_numero($alkuperainen) ) {
+	$korvattu[1] = taivuta_numero($alkuperainen);
+	$komme[1] = "NUM force num";
+	return;
+    }
+    # ORDINAALI
+    if ( $alkuperainen =~ /^([1-9]\d*)\.$/ ) {
+	my $apu1 = $1;
+	$perusluku = 0; # järjestysluku;
+	$korvattu[1] = taivuta_numero($apu1,0);
+	$komme[1] = "NUM force ordinal num";
+	return;
+    }
+    # YKSI MERKKI
+    if ( $alkuperainen =~ /^.$/ ) {
+	$korvattu[1] = yksitellen($alkuperainen, 0, 0);
+	$komme[1] = "CHAR forced";
+	return;
+    }
+    # STRING:case
+    if ( $alkuperainen =~ /:/ ) {
+	my ( $left, $right  ) = split(/:/, $alkuperainen);
+	if ( $muoto = mika_muoto($right) ) {
+	    # cartoken huolehtii moniosaisista
+	    # halli-SE:n
+	    my $cartoken = "";
+	    if ( $left =~ s/.*-// ) {
+		$cartoken = $&;
+		$cartoken = tarkkuuslavenna($cartoken, 1) . " ";
+	    }
+	    if ( $left =~ /^[A-ZÅÄÖ0-9]+$/ ) {
+		# 3M:n => kolmeämmän, EI kolmeisoämmän...
+		$korvattu[1] = $cartoken . yksitellen($left, 0, 1);
+	    }
+	    else { $korvattu[1] = $cartoken . yksitellen($left, 1, 1); }
+
+		
+	    $komme[1] = "N force case";
+	}
+	else {
+	    $muoto = 1; 
+	    $korvattu[1] = yksitellen($alkuperainen, 1, 1);
+	    $komme[1] = "N ei pääte";
+	}
+	return;
+    }
+
+    $pikkukirjain =~ tr/A-ZÅÄÖ/a-zåäö/;
+    $pikkukirjain = tavuta($pikkukirjain);
+    
+ 
+
+    
+    # (pisteeseen päättyvä) sana...
+    if ( $alkuperainen =~ /^([a-zåäöA-ZÅÄÖ]+\.?)$/ ) {
+	my $apu1 = $alkuperainen;
+	my $piste = 0;
+	if ($apu1 =~ s/(.)\.$/$1/ ) { $piste = 1; }
+	
+	my $puhu = 1; # readable
+
+	my $tavut = 0;
+	my $tmpi = $pikkukirjain;
+	# yksittäinen
+	if ( $pikkukirjain =~ /^.$/ ) { $puhu = 0; }
+	while ( $puhu && $pikkukirjain ) {
+	    my $vasen = $pikkukirjain;
+	    $vasen =~ s/\-.*//;
+	    $pikkukirjain =~ s/[^\-]*($|\-)//;
+	    if ( !onko_tavu($vasen) ) {
+		print STDERR "huono tavu1: *$vasen* in $tmpi/$pintamuoto[1]\n";
+		if ( $vasen =~ /^[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ && $verbose ) {
+		    print STDERR "huono tavu2: *$vasen* in $tmpi/$pintamuoto[1]\n";
+		}
+		if ( $vasen ne "" ) { $puhu = 0; }
+	    }
+	    $tavut++;
+	}
+	
+	if ( $puhu && 
+	     ($tavut > 1 ||
+	      ( $tavut == 1 && $apu1 =~ /^[A-ZÅÄÖ]?[a-zåäö]+$/ ) ) ) { 
+	    # it is speakable, don't do nothing
+	    return;
+	    # $korvattu[1] = $apu1; 
+	}
+	# unspeakable:
+	#$korvattu[1] = yksitellen($apu1, 0, 1);
+	$korvattu[1] = yksitellen($pintamuoto[1], 0, 1);
+	$komme[1] = "CHAR yksittäinen merkki tai lyhenne";
+	if ( $piste == 1 ) { $korvattu[1] .= "."; }
+    }
+    
+    # tarkkuuslavennus, jossa '-' katoaa 
+    #    elsif ( $alkuperainen =~ /^[A-ZÅÄÖ0-9]+(\-[a-zåäö]+)+\-?$/ ||
+    #	    $alkuperainen =~ /^[a-zåäö]+(\-[a-zåäö]+)+\-?$/ ||
+    #	    $alkuperainen =~ /^[A-ZÅÄÖ\-][a-zåäö]+(\-[A-ZÅÄÖ]?[a-zåäö]+)+\-?$/ )
+    # more generic than the original version (above)
+    elsif ( $alkuperainen =~ /^\-?(([A-ZÅÄÖ0-9]+|[A-ZÅÄÖ]?[a-zåäö]+)\-)+([A-ZÅÄÖ0-9]+|[A-ZÅÄÖ]?[a-zåäö]+)\-?/ )  {
+	$korvattu[1] = "";
+	while($alkuperainen ne "" ) {
+	    my $apu1 = $alkuperainen;
+	    $apu1 =~ s/\-.*$//;
+	    $alkuperainen =~ s/.*?($|\-)/$1/;
+	    if ( ! $apu1 ) {} # -sana-sana
+	    elsif ( onko_sana($apu1) ) {
+		$korvattu[1] .= $apu1;
+	    }
+	    else { 
+		$korvattu[1] .= tarkkuuslavenna($apu1, 0);
+	    }
+	    if ( $alkuperainen =~ s/^\-// ) { $korvattu[1] .= "-"; }
+	}
+	$komme[1] = "XXX tarkuuslavennus (no '-')";
+    }
+    elsif ( $alkuperainen =~ / / ) {
+	if ( $korvattu[1] ) { 
+	    $alkuperainen = $korvattu[1]; 
+	    $korvattu[1] = "";
+	}
+	
+	while ( $alkuperainen ne "" ) {
+	    $alkuperainen =~ s/^(\S+)($|\s+)//;
+	    my $leftie = $1;
+	    $korvattu[1] .= tarkkuuslavenna($leftie, 0) . " ";
+	}
+	$korvattu[1] =~ s/^ +//;
+	$korvattu[1] =~ s/ +/ /g;
+	$korvattu[1] =~ s/ $//;
+	$komme[1] = "FDG moniosainen";
+    }
+    # -sana
+    # sana-
+    elsif ( $alkuperainen =~ /^\-[a-zåäö]{3,}$/ ||
+	    $alkuperainen =~ /^[A-ZÅÄÖa-zåäö][a-zåäö]{2,}\-$/ ) {
+	
+    }      
+    else {
+	# huutomerkillisiä ei haluta lukea kirjain kerrallaan
+	if ( ( $korvattu[1] && $korvattu[1] =~ /^([A-ZÅÄÖa-zåäö]+)\'([a-zåäö]+)$/ ) || $pintamuoto[1]  =~ /^([A-ZÅÄÖa-zåäö]+)\'([a-zåäö]+)$/ ) {
+	    my $l = $1;
+	    $l =~ tr/A-ZÅÄÖ/a-zåäö/;
+	    my $r = $2;
+	    $r =~ tr/A-ZÅÄÖ/a-zåäö/;
+	    print STDERR "Heittomerkillisen pakkolavennus: $pintamuoto[1]\n";
+	    my $l2 = tavuta($l);
+	    my $ok = 1;
+	    # vartalon luettavuuden tarkistus
+	    while ( $l2 && $ok ) {
+		my $head = $l2;
+		$head =~ s/\-.*//;
+		$l2 =~ s/.*?($|\-)//;
+		if ( !onko_tavu($head) ){ 
+		    $ok = 0;
+		    print STDERR "Huono tavu3: $head ($l)\n";
+		}
+	    }
+	    my $str = "";
+	    # lavenna vartalo jos tarvis
+	    if ( $ok ) { $str .= $l; }
+	    else { $str .= tarkkuuslavenna($l, 0); }
+	    $str .= " " . avaa_merkki("'") . " ";
+	    # pääte
+	    $ok = 1;
+	    my $r2 = tavuta($r);
+	    # tarkista päätteen luettavuus
+	    while ( $r2 && $ok ) {
+		my $head = $r2;
+		$head =~ s/\-.*//;
+		$r2 =~ s/.*?($|\-)//;
+		if ( !onko_tavu($head) ){ 
+		    $ok = 0; 
+		     print STDERR "Huono tavu4: $head ($r)\n";
+		}
+	    }
+	    # ja lavenna jos tarvis
+	    if ( $ok ) { $str .= $r; }
+	    else { $str .= tarkkuuslavenna($r, 0); }
+
+	    $korvattu[1] = $str;
+	    if ( $komme[1] ) { $komme[1] .= "XXX huutolavennus2a"; }
+	    else { $komme[1] = "XXX huutolavennus2b"; }
+
+	}
+	else { # tavallisessa merkkiluennassa ei käytetä limbo-versiota
+	    $korvattu[1] = tarkkuuslavenna($pintamuoto[1], 0);
+	    if ( $komme[1] ) { $komme[1] .= "XXX tarkkuuslavennus2a"; }
+	    else { $komme[1] = "XXX tarkkuuslavennus2b"; }
+	}
+    }
+    if ( $korvattu[1] ) {
+	$korvattu[1] =~ s/^\s*//; $korvattu[1] =~ s/\s*$//;
+    }
+}
+
+
+# sub pintamuotoon
+# saa avattavan sanan syvämuodon johon on katenoitu tieto sijasta ja
+# luvusta (myöhemmin ehkä myös kliitistä ... tuskin ) ja
+# palauttaa pintamuodon
+# (korvaa xfst-automaatilla kun kerkiät ja olet debugganut sen)
+# ollut sangen stabiili viime aikoina...
+# KIELIKOHTAINEN, TÄMÄ ON VAIN SUOMELLE... korjaa
+# ongelmia: "paras", "jäsen", vierasperäiset 
+sub pintamuotoon {
+  if ( $debug ) { 
+      $debug_depth .= " ";
+      print STDERR "$debug_depth-pintamuotoon($_[0]): "; 
+  }
+  my $apumuoto;
+  $_[0] =~ s/ljäIn$/ljin/; # neljä -> nelin
+  # $_[0] =~ s/II/I/; # sijamuotojen 12 ja 14 "yksikkö" on monikko, tupla pois
+  # <- tehtiin jo katenoi_sija():ssa
+ 
+  # onko B ja S samat? muuta reformo.perliin, älä tänne
+  # idea on periaatteessa tämä:
+  # 1) rakennetaan ensin yksikön nominatiivin ja partitiivin pintamuoto
+  # 2) jäljelläolevat muodot saavat oman vartalonsa (joskus useita)
+  #    - NOM SG ja PTV SG (soveltuvin osin)valmiit: eivät muutu
+  # 3) vartalon rakennuksen jälkeiset säännöt
+  # (lähinnä illatiivi, genetiivi, PL PTV)  
+  # yksikön nominatiivit NOM: 
+
+  # O avaiN-avaiME
+  # X ks-x variS, variKSen
+  $_[0] =~ s/X$/s/; # mies, varis
+  $_[0] =~ s/O$/n/; # puhelin (-in -pääte)
+  $_[0] =~ s/OPa$/n/; # vasen, vasemPa-
+  $_[0] =~ s/R$/r/; # manner
+  $_[0] =~ s/S$/nen/; # toinen
+  $_[0] =~ s/Z$/s/; # tyhjyys, avaruus, -UUs
+  $_[0] =~ s/B$/s/; # varas
+  $_[0] =~ s/N$/n/; # yhdeksän
+  $_[0] =~ s/eleE$/el/; # askel, ei askele
+  $_[0] =~ s/tTeE$/te/; # syöte / syötTeE
+  $_[0] =~ s/TeE$/de/; # lude / luTeE 
+  $_[0] =~ s/kCeE$/ke/; # hake / hakCeE
+  $_[0] =~ s/eE$/e/; # puolue (vs. puoluEElle)
+  $_[0] =~ s/E$/i/;  # puoli (i/e-variaatio)
+  $_[0] =~ s/M$/nen/; # kymmenen 
+  $_[0] =~ s/tuhaF$/tuhat/; # tuhat (muuten sama paradigma kuin ord.luvuilla
+  $_[0] =~ s/F$/s/; # kolmas # F= järjestysluvun tunnus
+  if ( $clitic eq "" ) { # "äs" vs. "ässäkin"  
+    $_[0] =~ s/D$//; # KIRJAIMET, kirjain 's' = äsD
+  }
+  $_[0] =~ s/tsetD/tseta/; # Z
+  $_[0] =~ s/äksD/äksä/;   # X
+  $_[0] =~ s/(.)D/$1$1ä/;  # äsD+Sija => ässä+Sija
+  # partitiivit PTV, osa 1 (vain yksiköitä) ##########################3
+  $_[0] =~ s/eleEQ/elt/;
+  $_[0] =~ s/tTeEQ/tett/; # syöte / syötTeE
+  $_[0] =~ s/TeEQ/dett/; # lude / luTeE 
+  $_[0] =~ s/kCeEQ/kett/; # hake / hakCeE
+  $_[0] =~ s/CEQ/ke/; # jokea
+  $_[0] =~ s/OPaQ/nt/; # vasen+ta
+  $_[0] =~ s/OQ/nt/; # puhelin+PTV
+  $_[0] =~ s/pTEQ/st/; #lasta, muut muodot astevaihtelu-T:n luona
+  $_[0] =~ s/uZQ/utt/; # rakkaus, tulevaisuus
+  $_[0] =~ s/yyZQ/yytt/;
+  $_[0] =~ s/YYZQ/YYtt/; # generointia varten -UUs morfeemi
+  $_[0] =~ s/[XSBs]Q/st/; # mieStä, (sotilasta, toista), varasta, - 
+  $_[0] =~ s/RQ/rt/; # manneRta
+  $_[0] =~ s/[Mn]Q/nt/; # kymmeNtä
+  $_[0] =~ s/NQ//;  # 7 8 9 ptv:t yhdeksää, seitsemää
+  $_[0] =~ s/RiIQ/reit/; # lääkäRi - lääkäreitä # miksi täällä? alemmas
+  $_[0] =~ s/FQ/tZ/; # +yhdettä, +kolmatta, -ensimmäinen
+  $_[0] =~ s/KZEQ/hZ/; #yksi -> yhtä # välivaiheet unohtaen... 
+  # Partitiivi-blues jatkuu
+  $_[0] =~ s/([aeiouyäö])ZEQ/$1tt/;
+  $_[0] =~ s/eEQ/ett/; # puolue - > puoluetta
+  $_[0] =~ s/mEQ/me/;
+  $_[0] =~ s/EQ/t/;  
+  # monikot nominatiivit NOM 
+  $_[0] =~ s/BI$/Bat/; # varkaat, vokaalin kahdentuminen
+  $_[0] =~ s/uZI$/udet/; # avaruus
+  $_[0] =~ s/YYZI$/YYdet/;
+  $_[0] =~ s/yyZI$/yydet/;
+  $_[0] =~ s/I$/t/; # perustapaus
+  # poikkeavat yksikkö- ja monikkovartalot erotetaan (-UUs -morfeemi)
+  if ( $_[0] !~ /Z[Ei]/ ) {
+    $_[0] =~ s/uZI/ukZI/; # -UUs -morfeemin monikot
+    $_[0] =~ s/uZ/uZe/;   # -UUs -morfeemin yksiköt
+    $_[0] =~ s/yyZI/yykZI/; # -UUs -morfeemin monikot
+    $_[0] =~ s/yyZ/yyZe/;   # -UUs -morfeemin yksiköt
+    $_[0] =~ s/YYZI/YYkZI/;   # -UUs -morfeemin monikot
+    $_[0] =~ s/YYZ/YYZe/; # -UUs -morfeemin uyksiköt
+  }  
+  # muiden vartaloiden kehittelyä:
+  $_[0] =~ s/mieX/miehe/; # mies-poikkeus, säästetään
+  $_[0] =~ s/X/kse/;   #varikse-
+  $_[0] =~ s/OPa/mPa/; # vasemma-
+  $_[0] =~ s/O/me/;    # puhelime-
+  $_[0] =~ s/TeE/teE/; # lutee-
+  $_[0] =~ s/CeE/keE/; # hakkee-
+  # muut
+  $_[0] =~ s/S/se/; # toinen 
+  $_[0] =~ s/[tT]aR/$1are/; # kuningatTar (-tar -morfeemi) haltiatar
+  if ( $_[0] !~ /Ri/ ) {
+    $_[0] =~ s/R/ReE/;
+  } 
+  # partitiivit, osa 2 #######################################3
+  # Monikkoiset partitiivit, PTV PL 
+  $_[0] =~ s/^paraB/parhaB/; # paras-exception
+  $_[0] =~ s/([aeiouyöö][aeiouyäöB]I?)Q/$1t/; #huom. monikko-varas
+  # jatkuu
+  $_[0] =~ s/eEIQ/eit/; #puolue
+  $_[0] =~ s/ioIQ/ioIt/; # kolmioita
+  # $_[0] =~ s/IQ/j/; 
+  $_[0] =~ s/([aeiouyäöÅI])Q/$1/;
+  # genetiivin monikon -den
+  $_[0] =~ s/([aeiouyäöB]{2}I)G/$1de/;
+  # genetiivin G->e  
+  $_[0] =~ s/([aeiouyäö])EIG/$1ide/;
+  $_[0] =~ s/RiIG/reide/; # lääkäri
+  $_[0] =~ s/IG/Ie/;
+  $_[0] =~ s/ueG/uee/;
+  # genetiivin G->a (varkaan)
+  $_[0] =~ s/BG/Ba/;
+  $_[0] =~ s/B([ksltH])/Ba$1/; # varas-hiomista
+  # muuten genetiivin G->0
+  $_[0] =~ s/G//;
+  $_[0] =~ s/M/ne/; # kymmenen perusvartalo
+  $_[0] =~ s/N//; # 7-9:n SG-nominatiivin loppu-N pois muista muodoista
+  #TEST
+  $_[0] =~ s/F/nZe/;
+  # kairA <-> kairOissa
+  $_[0] =~ s/ÅI/oI/;
+  $_[0] =~ s/Å/a/;
+  # E->e
+  $_[0] =~ s/E/e/;
+  # muuten genetiivin G->0
+  $_[0] =~ s/G//;
+  # ainakin aäe & E->0 jos _I, autoJen
+  $_[0] =~ s/uuI/ui/;
+  $_[0] =~ s/yyI/yi/;
+  $_[0] =~ s/uoI/oi/;
+  $_[0] =~ s/yöI/öi/;
+  $_[0] =~ s/aaI/ai/;
+  $_[0] =~ s/ieI/ei/;
+  $_[0] =~ s/uI([eA])/uj$1/; # sanottuja, sanottujen
+  $_[0] =~ s/yI([eA])/yj$1/;
+  $_[0] =~ s/ueI/uei/; # puolue
+  $_[0] =~ s/[aäeE]I/I/;    
+  $_[0] =~ s/iIe/Ie/;
+  $_[0] =~ s/iIA$/ejA/;  
+  $_[0] =~ s/iI/eI/;
+  $_[0] =~ s/oI([eA])/oj$1/; # autoja, autojen
+  $_[0] =~ s/öI([eA])/öj$1/; #
+  # I -> i
+  $_[0] =~ s/I/i/;
+  ###### KOKONAISUUS #############
+  # Z->s jos _i
+  $_[0] =~ s/Zi/si/;
+  # yhdistä Z & T
+  $_[0] =~ s/Z/T/;
+  # K-> jos _s
+  $_[0] =~ s/Ks/ks/;      
+  # muuten K->h
+  $_[0] =~ s/K/h/;        
+  #################################
+  ################################
+  if ( $_[0] =~ /T/ ) { # avotavu/umpitavu T/D
+    $_[0] =~ s/pT/ps/; # lapsi-poikkeus
+    $apumuoto = $_[0];
+    $apumuoto =~ s/([Bbcdfghjklmnprstvwxz][aeiouAäö])/-$1/g;
+    if ( $apumuoto =~ /T[aeiouAäö][Aaeiouäö]?[nsltkrB]/ && $apumuoto !~ /Tie/) {
+      $_[0] =~ s/nT/nn/; # kanta
+      $_[0] =~ s/rT/rr/; # varras
+      $_[0] =~ s/tT/t/;      
+      $_[0] =~ s/T/d/;   # katu/kadun      
+    }
+    else {
+      $_[0] =~ s/T/t/;
+    }
+  }
+  if ( $_[0] =~ /C/ ) { # avotavu/umpitavu K/gv-
+    $apumuoto = $_[0];
+    $apumuoto =~ s/([Bbcdfghjklmnprstvwxz][aeioAuäö])/-$1/g;
+#       print "\t$apumuoto\t";
+    if ( $apumuoto =~ /C[aeioAuäö][aeiAouäö]?[nsltkr]/ && $apumuoto !~ /Cie/ ) {
+      $_[0] =~ s/nC/ng/; # kengän
+      $_[0] =~ s/([Aaeiou]{2})C/$1/; # hauki/hauen
+      $_[0] =~ s/uC/uv/;   # katu/kadun
+      $_[0] =~ s/JCie/ikie/; # poikien-cheat
+      $_[0] =~ s/C//;
+    }
+    else {
+      $_[0] =~ s/C/k/;
+    }    
+  }
+  if ( $_[0] =~ /P/ ) { # avotavu/umpitavu K/gv-
+    $apumuoto = $_[0];
+    $apumuoto =~ s/([Bbcdfghjklmnprstvwxz][aeiouäö])/-$1/g;
+    if ( $apumuoto =~ /P[aeiouäö][aeiouäö]?[nsltkrB]/ && $apumuoto !~ /Pie/) {
+      $_[0] =~ s/mP/mm/; # kamman
+      $_[0] =~ s/rP/rv/;  # turpa
+      $_[0] =~ s/pP/p/;  # tappo
+      $_[0] =~ s/P/v/;
+    }
+    else {
+      $_[0] =~ s/P/p/;
+    }
+  }  
+  # poika/pojan aika/ajan i/j -pari 
+  $_[0] =~ s/Jk/ik/;
+  $_[0] =~ s/J/j/;
+  # illatiivi-H
+  $_[0] =~ s/e([aeiä])HV/e$1$1/; # puolueeseen, oikea-an
+  $_[0] =~ s/i([oö])HV/i$1$1/; # kolmioon, neliöön
+  
+  $_[0] =~ s/BiHV/Baisii/;# varkaisiin
+      $_[0] =~ s/BaHV/Basee/; # varkaaseen
+  $_[0] =~ s/([aeiouyäö])([aeiouyäö])H./$1$2h$2/;
+  $_[0] =~ s/sH/se/;
+  $_[0] =~ s/H//;
+  $_[0] =~ s/([aeiouyäö])V/$1$1/;
+  
+  # B:n katoaminen
+  $_[0] =~ s/B//;
+  $_[0] =~ s/R/r/;
+  # vokaalisointu ja varka:na-vokaalin kahdentuminen
+  # jos moniosainen yhdyssana (hien#osto#ravintola)
+  while ( $_[0] =~ /_.*?_/ ) {
+    $_[0] =~ s/_//; # tuhotaan eka '_' voidaan palauttaa
+    # jos ei tuhota vaan muutetaan: _ --> ¤
+  }
+  $_[0] =~ s/BnA/AnA/; # varkaana (???)
+  # vokaalisointu yhdyssanan viimeiselle osiolle
+  if ( $_[0] =~ /_/ && $_[0] =~ /\_[bcdfghjklmnpqrstvwxzei]*[auo]/ ) { 
+    $_[0] =~ s/Y/u/g;
+    $_[0] =~ s/A/a/g;
+  }
+  elsif (  $_[0] =~ /_/ ) {
+    $_[0] =~ s/Y/y/g;
+    $_[0] =~ s/A/ä/g;
+  }
+  # tavalliset sanat
+  elsif ( $_[0] =~ /^[bcdfghjklmnpqrstvwxzei]*[auo]/ ) {
+    $_[0] =~ s/Y/u/g;
+    $_[0] =~ s/A/a/g;
+  }
+  else {
+    $_[0] =~ s/Y/y/g;
+    $_[0] =~ s/A/ä/g;
+  } 
+  $_[0] =~ s/_//g; # poistetaan tieto morfeemirajasta
+  if ( $debug ) {
+      $debug_depth =~ s/ //;
+      print STDERR "$_[0]\n";
+  }
+  return $_[0];
+}
+
+# jos meillä on mittayksikkönominatiivitieto, hih...
+sub plain_base {
+  my $sana = $_[0]; 
+  if ( $nom{$sana} ) { return 1; }
+  return 0;
+}
+
+sub plain_text_case {
+  my $sana = $_[0];
+  if ( $nom{$sana} ) { return "NOM"; }
+  if ( $gen{$sana} ) { return "GEN"; }
+  if ( $ptv{$sana} ) { return "PTV"; }
+  if ( $ine{$sana} ) { return "INE"; }
+  if ( $ela{$sana} ) { return "ELA"; }
+  if ( $ill{$sana} ) { return "ILL"; }
+  if ( $ade{$sana} ) { return "ADE"; }
+  if ( $abl{$sana} ) { return "ABL"; }
+  if ( $all{$sana} ) { return "ALL"; }
+  if ( $ess{$sana} ) { return "ESS"; }
+  if ( $tra{$sana} ) { return "TRA"; }
+  # etuliite-"kertoimet" pois ja yritetään uudelleen...
+  if ( $sana =~ /^desibel/ ) { return "???"; }
+  if ( $sana =~ /^(desi|giga|hehto|kilo|mega|milli|nano|neliö|sentti)/ ) {
+      $sana = $'; #';
+      my $case = plain_text_case($sana);
+      #if ( $case ne "???" ) {
+      print STDERR "$sana ($case)\n";
+      #}
+      return $case;
+  }
+  return "???";
+}
+
+
+sub plain_text_POS {
+  if ( $debug ) { print STDERR "plain_text_POS(): $_[0]\n"; }
+  # SULJETUT LUOKAT TÄNNE
+  my $sana = $_[0];
+  $sana =~ tr/A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ/a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüış/;
+
+  if ( $sana eq "minä" || $sana eq "sinä" || $sana eq "hän" || $sana eq "me" ||
+       $sana eq "te"|| $sana eq "he" ||
+       $sana eq "minun" || $sana eq "sinun" || $sana eq "hänen" || $sana eq "meidän" || $sana eq "teidän" || $sana eq "heidän" ) {
+    return "PRON";
+  }
+
+  if ( $sana eq "ja" || $sana eq "tai" ) {
+    return "C";
+  }
+
+  if ( $sana eq "olen" || $sana eq "olin" ||
+       $sana eq "olet" || $sana eq "olit" ||
+       $sana eq "on" || $sana eq "oli" ) {
+    return "COP V";
+  }
+  if ( $sana eq "asti" ||
+       $sana eq "jalkeen" ||
+       $sana eq "kanssa" ||
+       $sana eq "saakka" ) { 
+    return "PSP";
+  }
+
+       
+
+  return "";
+}
+
+sub preprocess_finnish1 {
+  if ( $verbose ) {
+    print STDERR "Preprocessing Finnish text, phase one.\n";
+  }
+  my $input_file = $_[0];
+  my $output_file = $_[1];
+  my $newline = 0;
+  my $OUTPUT;
+  if ( $www ) {
+      open(INPUT, $IO1);
+      ($OUTPUT, $IO2) = tempfile(DIR => $IODIR);
+  }
+  else {      
+      open(INPUT, "$HOME/tmp/$input_file");
+      open($OUTPUT, ">$HOME/tmp/$output_file");
+  }
+  ## if ( $mode eq "run" ) { print OUTPUT "<utterance>\n"; }
+  while(<INPUT>) {
+    my $sana = $_;    
+    $sana =~ s/^\s+//;
+    $sana =~ s/\s+$/\n/;
+    $sana =~ tr/\t/ /;
+    $sana = korjaa_typot($sana);
+    
+    if ( $mode eq "line" && $sana =~ /^\s*$/ ) { next; }
+    if ( $mode eq "run" && $sana =~ /^\s*$/ ) { $newline = 1; next;}
+
+    if ( $mode eq "line" || $newline == 1 ) { $sana =~ s/^( *\-)([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß])/$1 $2/; } # tehdään ennen lauserajamerkkiä ja $newlinen nollausta
+
+    if ( $newline == 1 && $mode eq "run" ) { # "line"-mode alempana...
+      print $OUTPUT "<utterance>\n";
+      $newline = 0;
+    }
+    # tehdään tämä aikaisin, koska se on erikoismerkki monissa
+    # ohjelmointikielissä
+    $sana =~ s/(;+)/ $1 /g;
+
+    # regex
+    $sana =~ s/(\*+)/ $1 /g;
+
+
+    # M.Meik => M. Meik
+    while ( $sana =~ s/(^| )([A-ZÅÄÖ])\.([A-ZÅÄÖ])/$1$2. $3/ ) {}
+    # STT:n kommenttimerkki on "///", $sana =~ s/\/\/\// \/\/\/ /g; 
+    
+    $sana =~ s/\+\-(\d)/± $1/g; # ±: +-  ±
+ 
+    $sana =~ s/(^| )\//$1\/ /g; # / irti sanan alkusta
+    
+	
+    $sana =~ s/(\|+|\\)/ $1 /g; # perlin tms. vaarallisia erikoismerkkejä: | \ 
+    $sana =~ s/\+/ \+ /g; # 
+    
+    #2-2-tulos => 2 - 2-tulos, 5-6-luokkalainen
+    $sana =~ s/(^|[^\-] ?)(\d+(,\d+)?) ?\- ?(\d+(,\d+)?) ?\-([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß])/$1$2 - $4-$6/g;
+    # 10,- => 10,00
+    $sana =~ s/(\d),\-($|[ \)\(\.:;!\?,\/])/$1,00$2/g;
+    
+    # tuplaheittomerkki lainausmerkiksi
+    $sana =~ s/\'\'/\"/g;
+    # 'sana'. => 'sana' .
+    $sana =~ s/\'\./\' ./g;
+
+    $sana =~ s/\'s\-/\'s -/g; # Butcher's-rafla
+
+    $sana =~ s/(^| )\-([A-Z])/$1- $2/g; # -Sana => - Sana
+    
+    # "..." irti 
+    $sana =~ s/(\.\.+)$/ $1/g;
+    $sana =~ s/(\.\.+)([^\.])/ $1 $2/g;
+
+
+    # matikka ';' '=', " ja sulut irti (entäs tuumamerkinnät...)
+    $sana =~ s/([\&\^\"()\[\]{}=;<>])/ $1 /g; # ( ) [ ] { } "
+    
+    # Raamatun kirja 3:1-2 => 3 : 1-2
+    $sana =~ s/([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]\.)(\d+):(\d)/$1 $2 : $3/g;
+    $sana =~ s/:(\d+ ?\- ?\d+)/: $1/g;
+    # 2.Tim => 2. Tim
+    $sana =~ s/(^| )(\d+\.)([A-ZÅÄÖ])/$1$2 $3/g;
+    # Tim.2 => Tim. 2
+    $sana =~ s/([a-zåäö]\.)(\d+)($| )/$1 $2$3/g;
+    
+    # $100 => 100 $
+    $sana =~ s/(^| )(£|A?\$)(\d+)(\.?)($| )/$1$2 $3$4$5/g;
+    
+    # $ § % irti jos ei sijamuototietoa perässä---
+    $sana =~ s/([\$\%\£]|§{,2})($|[^:]|:[^a-yäö])/ $1 $2/g; # $ % § £
+    
+    # : , ; ! ? ?!? irti
+    $sana =~ s/ ,/ , /g;
+    $sana =~ s/ *,(\s)+/ ,$1/g;
+    $sana =~ s/\`/ \` /g; # ` irti
+    $sana =~ s/,(\-\D)/ , $1/g;
+    # 21. , 22. ja 23. => 21., 22. ja 23. komppania (muuten lisää lauserajan)
+    if ( $tagger eq "fdg" ) { $sana =~  s/(^| )(\d+\.) ,/$1$2,/g; } 
+    $sana =~ s/([!\?]+)/ $1 /g;
+    $sana =~ s/([:\\])($| )/ $1$2/g;
+
+    # ManU. => ManU .
+    # (piste ei kuulu lyhenteeseen, jos isot kirjaimet ovat järjestyneet näin)
+    $sana =~ s/(^| )([A-ZÅÄÖ][a-zåäö]+[A-ZÅÄÖ][^ ]*)\. /$1$2 . /g;
+    
+    # 2,3. => 2,3 . (toi \D engl. numeroinnin takia)
+    $sana =~ s/(\d),(\d+)\.(\D)/$1,$2 .$3/g;
+    $sana =~ s/:(\d+)\.($| )/:$1 .$2/g;
+    
+    # 0000. => 0000. (suuri ollakseen järjestysluku...)
+    $sana =~ s/(\d{4})\.($| [^a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß])/$1 .$2/g;
+
+    
+    # sana -64. => sana -64 .
+    $sana =~ s/([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]) \-(\d+)\.(\s)/$1 -$2 .$3/g;
+    
+    # 123. -124. => 123. - 124.
+    $sana =~ s/(^| )(\d+\.) \-(\d+)\.(\s)/$1$2 - $3. $4/g;
+    # -123. Iso kirjain tai rivin vaihto => 123 .
+    $sana =~ s/(^|\D)(\-\d+)\.($| [A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ])/$1$2 .$3/g;
+    
+    
+    # yhteenkirjoitettu.Toinen lause
+    $sana =~ s/ ([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)\. ([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]) / $1 . $2 /g;
+    
+    # Joh.3 => Joh. 3 (vs. URL:t)
+    $sana =~ s/(^| )(alk|klo|Joh|Jr|Luuk|Matt|Moosno|No|no|nr|op|puh|Ps|synt|Vol|vv|väh|[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞa-zàáâãäåæçğèéêëìíîïğòóôõöøùúûüışÿß]|[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]{5})\.(\d)/$1$2. $3/g;
+    
+    # irroitettavat sanat
+    $sana =~ s/(^| )(aj|dem|ent|ev\.lut|milj|mm|Mr|mrd|vs|yhdist|ym)\./$1$2. /g;
+    
+    # SANA. tokassa (^| ):ssa oli ennen AltGr+' ' ...
+    $sana =~ s/(^| )([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]{4,})\.(^| )/$1$2 .$3/g;
+    
+    
+    
+ 
+    
+    # -1 C. => -1 C .
+    $sana =~ s/(^| )(\-?\d+(,\d+)?) C\./$1 $2 C ./g;
+    
+    # - numeroiden non-breaking spacen poisto:
+    while( $sana =~ s/(^|[ \-])(\d+) (\d\d\d)(\D)/$1$2$3$4/ ) {}
+    # 10.000:n kanssa ollaan nirsompia...
+    while( $sana =~ s/(\d)\.(000)(\D)/$1$2$3/ ) {}
+    
+    
+    
+    # joissain tei2text-jutuissa esiintyy '---' '-':n sijaan
+    $sana =~ s/\-+/\-/g;
+    
+    # mk/kk -> mk / kk (mutta säilyttää internet-osoitteet ( joo *.fi))
+    $sana =~ s/(^| )([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞa-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß0-9\-]*|\d+,\d+)\/([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞa-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß0-9])/$1$2 \/ $3/g;
+    # 10x10x5 => 10 x 10 x 5
+    while ( $sana =~ s/(\d)x(\d)/$1 x $2/ ) {} # 
+    
+    
+    # '4-5' --> '4 - 5', myös 4-4-2 (mm. jalkapallomuodostelma)
+    while ( $sana =~ s/([0-9]+)\-([0-9]+)/$1 \- $2/g ) {};
+    
+# Conexor on ongelmallinen kaksiosaisten päiväysten kanssa...
+    if ( $tagger eq "twol" || $tagger eq "none" ) {
+      $sana =~ s/([0-9]+\. ?)\-( ?[0-9]+\.)/$1 \- $2/g;
+    }
+    
+    
+    # .- => . - (ei F.-E. Sillanpää
+    $sana =~ s/([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß])\.\-([0-9A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ])/$1. -$2/g;
+    $sana =~ s/([0-9])\.\-([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ])/$1. -$2/g;
+    
+    # järjestysluku on yksinäinen kokonaisluku, ei voi olla muita merkkejä
+    # R2D2. => R2D2 . 
+    # mutta päiväys 23.4. pysyy ennallaan
+    # http://www.kuluttajavirasto.fi/tietoa/autot/kesarengas00.html mättää
+    $sana =~ s/(^| )([^\s\/]*[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞa-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß])(\d+)\.(\s)/$1$2$3 \.$4/g;
+    
+    
+    # 23.5.NUM. => 23.5.NUM .
+    $sana =~ s/(^| )(\d+\.\d+(\.\d+)+)\.($| )/$1$2 .$4/g;
+    
+    # 1+1 -> 1 + 1
+    while ( $sana =~ s/(\d)\+(\d)/$1 + $2/ ) {}
+    
+    # C.G.V. => C. G. V. (???)
+    while( $sana =~ s/(^| )(([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]\.)+)([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]\.)(\s)/$1$2_$4$5/g ) { $sana =~ s/_/ /g;  }
+    
+    # Mk I. => Mk I .
+    $sana =~ s/ Mk ([IVX]+)\.(^| )/ Mk $1 .$2/g;
+    
+    # *:*. => *:* . 
+    $sana =~ s/(:\S+)\.(^| )/$1 .$2/g;
+    
+    
+    $sana =~ s/(^| )(\d+:\d+)(\-[a-zåäö]) /$1$2 $3 /g;
+    # CONEXOR bugahtaa: 1:10000 => 1:10 000, ohitustesti:
+    # TWOL & none vasta kakkospyyhkäisyssä, jotta lauserajat ei mättäis...
+    
+    if ( $tagger eq "fdg" ) {
+      $sana =~ s/ ([0-9]+):([0-9]+) / $1 : $2 /g;
+    }
+    
+    # tarpeeksi iso luku, joka ei pääty nollaan on tuskin järjestysluku
+    $sana =~ s/(\d\d\d[1-9])\.(\s)/$1 .$2/g;
+    # .. ja eiköhän viisinumeroiset luvut ole aina peruslukuja
+    $sana =~ s/(\d\d\d\d\d)\./$1 ./g;
+    # kaksiosainen numero, jonka toinen osa ei ole kuukauden numero..
+    $sana =~ s/(^| )(\d+\.)([2-9]\d|1[3-9]|0|00|\d\d\d+)\.(\s)/$1$2$3 .$4/g;
+    # kaksiosainen numero, jonka eka osa ei ole päivän numero
+    $sana =~ s/(^| )(3[2-9]|[4-9][0-9]|00|0|\d{3,})(\.\d+)\.(\s)/$1$2$3 .$4/g;
+    
+    # piste irti 0-alkuisen sanan jälkeen
+    $sana =~ s/(^| )(0\S*)\.(\s)/$1$2 .$3/g;
+  
+    # typot: sana.Toinen
+    $sana =~ s/(^| )([a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)\.([A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+\s)/$1$2. $3/g;
+    
+    # ' irti
+    $sana =~ s/(^| )\'/$1\' /g;
+    # ' 70s => '70s takaisin
+    $sana =~ s/\' (\d\ds?[\.;,!\? ])/\'$1/g;
+    $sana =~ s/\'($| )/ \'$1/g; # menköön cats' '
+    # show'ta. -> show'ta .
+    $sana =~ s/(\'[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)\./$1 ./g;
+    # twolin kommentit muuksi ! -> ¤ (palautetaan twollauksen jälkeen)
+    if ( $tagger eq "twol" ) { $sana =~ s/!/¤/g; }
+    # 3.krs (ei "versio 3.x")
+    $sana =~ s/(^| )(\d+)\.([a-wyzàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+[\.]?\s)/$1$2. $3/g;      
+    
+    # DDMM-DDMM => DDMM - DDMM
+    $sana =~ s/(\d+\.\d+\.)\-(\d+\.\d+\.)/$1 - $2/g;
+    
+    # ma-ke => "ma - ke"
+    $sana =~ s/ (ma|ti|ke|to|pe|la|su)\-(ma|ti|ke|to|pe|la|su) / $1 - $2 /g;
+    
+    # 00 000. A => 00 000 . A
+    $sana =~ s/(\d) (\d+)\.($| [A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ])/$1 $2 .$3/g;
+
+    
+    $sana =~ s/ +/ /g;
+    $sana =~ s/^\s+//;
+    if ( $mode eq "line") { 
+      if ( $tagger ne "fdg" ) { # conexor osaa irroittaa pisteen...
+	# lauseen lopussa olevaan päiväykseen lisätään piste...
+	if ( $sana =~ /(^| )([1-9]|[12][0-9]|30|31)\.(1[012]|[1-9])\.$/ ) { 
+	  $sana =~ s/$/ ./; 
+	}
+	$sana =~ s/\.\s+$/ \./;
+      }
+      $sana =~ s/\s+/\n/g;
+      $sana =~ s/\s*$//; # turhat rivivaihdot pois...
+      print $OUTPUT "$sana\n<utterance>\n"; 
+      $newline = 1;
+    } # ½
+    else { # juokseva
+      $sana =~ s/\s+/\n/g;
+#      if ( $tagger eq "none" ) {      
+      $sana =~ s/(\n[\.!\?;]+\n)/$1<utterance>\n/g;
+      $sana =~ s/<utterance>\n$//;
+#      }
+      print $OUTPUT $sana;
+	  
+    }
+  }
+  close(INPUT);
+  if ( !$www ) { close($OUTPUT); }
+}
+
+sub preprocess_finnish2 {
+  if ( $verbose ) {
+    print STDERR "Preprocessing Finnish text, phase two.\n";
+  }
+  my @abb = ("Aam.", "a.D.", "Aik.", "aj.", "alik.", "ao.", "Apt.", 
+	     "bd.",
+	     "Dan.", "dem.", "dipl.", "dipl.ins.", "dj.", "dos.", "dr.",
+	     "Ef.", "em.", "Engl.", "engl.", "ent.", "esim.", "Est.",
+	     "etel.", "evl.", 
+	     "ev.lut.", "ev.-lut", 
+	     "evp.",
+	     "Fil.", "fil.", "Filem.",
+	     "fil.kand.", "fil.lis.", "fil.maist.", "Fil.maist.", "fil.tri.",
+	     "fil.yo.",
+	     "Gal.",
+	     "Hab.", "Hag.", "Hebr.", "henk.koht.", "Hes.", "Hoos.", 
+	     "ilm.", "Ilm.",
+	     "Jaak.", "Jes.", "Jer.", "Joh.", "joht.",
+	     "Joos.", 
+	     "Juud.", "julk.",
+	     "kand.", "kapt.", "kauppat.maist.",
+	     "kenr.", "kers.", "kesk.",
+	     "kiel.", # kielinen, kielletty?
+	     "ko.", "kok.", "Kol.", "Kor.", "Kork.", "ks.", "Kun.", "kv.",
+	     "leht.", "lis.", "Luuk.", "luutn.", "lääk.",
+	     "maist.", "Mal.", "Mark.", "Matt.", "max.",
+	     "milj.", "mm.", "Moos,", "Mr.", "mr.", "mrs.", "ms.", "mt.", 
+	     "mus.", "myöh.",
+	     "n.", "Neh.", "nk.", "Ns.", "ns.", "nyk.",
+	     "Ob.", "oik.", "oik.kand.", "op.", "os.", "o.s.",
+	     "p.", "ph.", "Piet.", "pit.", "pj.", "pohj.", "prof.", 
+	     "Ps.", "P.S.", # Psalmit
+	     "Puh.", "puh.", 
+	     "pääkaup.",
+	     "Room.", "r.y.", # r. y. jo sweep1:ssä?
+	     "s.", "Sak.", "Sam.", "sd.", "Sef.", "Snl.", 
+	     "so.", "Srn.", "st.", "suom.", "synt.",
+	     "Tess.",
+	     "tekn.lis.", "tekn.tri.", "tekn.yo.", "Tim.", "Tiit.", 
+	     "toht.", "toim.", "ts.",
+	     "Tuom.", 
+	     "v.", "va.", "Val.", "valt.kand.", "valt.maist.", "vas.", "vast", 
+	     "vihr.",
+	     "Vol.", "vpj.",
+	     "vrt.", "vs.", 
+	     "vt.", # virkaatekevä
+	     "vv.", "vänr.", "vääp.",
+	     "yht.", "yht.maist.", "yht.tri.", "ylik.", "ylim\.", "ym.", 
+	     "yo.", "yo.merk.",
+	     "Yst.", "yst."
+	     ) ;
+  
+  my ( %isSet, $entry );
+  foreach $entry (@abb) { $isSet{$entry} = 1; }
+  my ( $old, $oldold, $oldoldold );
+  $oldoldold = $oldold = "";
+
+  my $input_file = $_[0];
+  my $output_file = $_[1];
+  my $OUTPUT;
+  if ( $www ) {
+      open(INPUT, $IO2);
+      ($OUTPUT, $IO3) = tempfile(DIR => $IODIR);
+  }
+  else {
+      open(INPUT, "$HOME/tmp/$input_file");
+      open($OUTPUT, ">$HOME/tmp/$output_file");
+  }
+  my $ihkaeka = 0;
+  while(<INPUT>) {
+    s/\s*\n//;
+    
+    if ( /^$/ ) { next; }
+    if ( !$ihkaeka ) {
+      $old = $_;
+      $ihkaeka = 1;
+      next;
+    }
+    if ( /^<utterance>$/ ) { # jos seuraavana on utterance-tag
+#      if ( $old ) {
+	if ( $old =~ s/\n<utterance>$// ) {}
+	else { $old =~ s/(.)\.$/$1\n./; } # lauseen päättävä päiväys voi olla ongelma...
+	print $OUTPUT "$old\n"; 
+#      } # epäonnistuu ekalla kiekalla
+      $oldoldold = $oldold; $oldold = $old; $old = $_;
+      next;
+    }
+    if ( $isSet{$_} ) { # lyhenne, josta ei poisteta pistettä
+      print $OUTPUT "$old\n";
+      #print STDERR "$old $_\n";
+      $oldoldold = $oldold; $oldold = $old; $old = $_;
+      next;
+    }
+    if ( /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿßüáà]+(\-[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)?\.$/ ||#Tav. sana/nimi
+	 /\-[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+\.$/ || # yhdyssanan loppuosa
+	 /^www\..*\.$/ || # www-osoite
+	 /\.html?\.$/ || # lisää www-osoitteita
+	 /\@([a-z\-]+\.)+$/ ||# sähköpostiosoite
+	 /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]{2,}\.$/ || # 2+ isoa kirjainta
+	 /^(Ma?c|O\')[A-Z][a-zäö]+\.$/ || # McDonald O'Connor
+	 /\-\.$/ || # -.
+	 /\+.*\./ || # sisältää '+'-merkin
+	 /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]+\-[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]+$/ # urheiluseuroja
+	 ) { 
+      s/\.$/\n.\n<utterance>/; 
+      print $OUTPUT "$old\n";
+      $oldoldold = $oldold; 
+      $oldold = $old;  
+      $old = $_;
+      next;
+    }
+    # 123. Sana
+    if ( /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ && # uusi lause (toivottavasti)
+	 $old =~ /^\d+\.$/ ) {
+      $old =~ s/\./\n\.\n<utterance>/;
+      print $OUTPUT "$old\n";
+      $oldoldold = $oldold; $oldold = $old;  $old = $_;
+      next;
+    }
+    
+    # sähöpostitukea
+    if ( /^>+$/ ) {
+	print $OUTPUT "$old\n";
+	if ( $old !~ /<utterance>$/ ) { print $OUTPUT "<utterance>\n"; }
+	$oldoldold = $oldold; $oldold = $old;  $old = $_ . "\n<utterance>";
+	next;
+    }
+    # 2:2 => 2 : 2
+    s/^([1-9]\d*):([1-9]\d*)/$1\n:\n$2/;
+    print $OUTPUT "$old\n";
+    if ( $old eq ":" &&
+	 $oldold =~ /^\d+$/ &&
+	 $oldoldold =~ /^(Aam|Aik|Apt|Dan|Ef|Esra|Est|Fil|Filem|Gal|Hab|Hag|Hebr|Hes|Hoos|Ilm|Jaak|Jer|Jes|Job|Joh|Jooel|Joona|Joos|Juud|Kol|Kor|Kork|Kun|Luuk|Mal|Mark|Matt|Miika|Moos|Neh|Ob|Piet|Ps|Room|Ruut|Sak|Sam|Sef|Snl|Srn|Tess|Tiit|Tim|Tuom|Val)\.?$/ ) { # nothing
+    }
+    elsif ( $old =~ /^[!\?\.:]+$/ ) {
+      print $OUTPUT "<utterance>\n";
+    }
+    
+    $oldoldold = $oldold; $oldold = $old; $old = $_;
+  }
+  
+  # tulosta vika rivi:
+  print $OUTPUT "$old\n";
+
+  close (INPUT);
+  if ( !$www ) {
+      close ($OUTPUT);
+  }
+}
+
+###
+#
+# reformo(string perusmuoto)
+#
+# hakee binäärihaulla halutun sanan syvämyodon leksikosta.
+# tällä hetkellä puuttuva sana aiheuttaa virheen...
+sub reformo {
+  if ( $debug ) { print STDERR "$debug_depth reformo($_[0])\n"; }
+  # tälle pitäisi kai tehdä optio, jolla se hakee kaikki muodot
+  # esim molemmat kuusi-sanat
+
+  my $line = $_[0];
+  unless ( $yleissanasto{$line} ) { 
+    print STDERR "\nPerusmuotoa $_[0] ei löytynyt yleissanastosta!\n";
+    # if ( $debug ) { die; } # debug 
+    return $line; # robust
+  }
+  return syvamuoto_pintamuotoon($yleissanasto{$line});
+}
+
+
+
+
+sub roomalainen { 
+  if ( $debug ) { print STDERR "roomalainen(): $_[0]\n"; }
+  my ( $jarjestysnumero ) = $_[0];
+  # $jarjestysnumero-muuttujassa on luku roomalaisin kirjaimin, palauta numero
+  # muuttaa roomalaisen numeron arabialaiseksi, itse
+  # aukikirjoitus tapahtuu muualla.
+  # ongelmia: ks. sijamuoto()
+  # toistaiseksi kovin ADHOV
+
+  # lyhenteen päätteen oton voisi liittää tähänkin, sopisi melkein paree..
+  #print STDERR "*$lyhenne*";
+  if ( $jarjestysnumero =~ /^[IVXLCM]+:[a-yäö]+/ ) {
+    my $apu;
+    ($jarjestysnumero, $apu) = split(/:/, $jarjestysnumero);
+    # HAE $apu:lle sijamuoto!!
+    $muoto = mika_muoto($apu);
+    if ( $muoto == 0 ) { return 0; }
+  }
+
+  if ( $jarjestysnumero eq "I" )   { return 1; }
+  if ( $jarjestysnumero eq "II" )  { return 2; }
+  if ( $jarjestysnumero eq "III" ) { return 3; }
+  if ( $jarjestysnumero eq "IV" )  { return 4; }
+  if ( $jarjestysnumero eq "V" )   { return 5; }
+  if ( $jarjestysnumero eq "VI" )  { return 6; }
+  if ( $jarjestysnumero eq "VII" ) { return 7; }
+  if ( $jarjestysnumero eq "VIII" ){ return 8; }
+  if ( $jarjestysnumero eq "IX" )  { return 9; }
+  if ( $jarjestysnumero eq "X" )   { return 10; }
+  if ( $jarjestysnumero eq "XI" )  { return 11; }
+  if ( $jarjestysnumero eq "XII" ) { return 12; }
+  if ( $jarjestysnumero eq "XIII" ){ return 13; }
+  if ( $jarjestysnumero eq "XIV" ) { return 14; }
+  if ( $jarjestysnumero eq "XV" )  { return 15; }
+  if ( $jarjestysnumero eq "XVI" ) { return 16; }
+  return 0;
+}
+  
+
+
+sub save_input {
+    if ( $www ) {
+	my $FH;
+	($FH, $IO1 ) = tempfile(DIR => $IODIR);
+	if ( defined $FH ) {
+	    my $entry = param('entry');
+	    $entry ||= "Et antanut syötettä !"; #"Et antanut syötettä!";
+	    $entry =~ s/[^A-Za-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿßÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ0-9\- \.,;:\?!\']//g;
+	    $entry =~ s/\s+/ /g;
+	    if ( $entry =~ s/^(.{100}).*/$1/ ) { # jos lyhennetään syötettä
+		$entry =~ s/ [^ ]*$//; # niin poistetaan viimeinen (mahd. lyhentynyt) sana
+	    }
+	    $entry =~ s/^\s*//;
+	    $entry =~ s/\s*$/\n/;
+	    # probably a hostile visitor:
+	    if ( $entry eq "smyga\n" ) {
+		print "<script language=\"JavaScript\">\n";
+		print "<!--\n";
+		print "window.close();\n";
+		print "// -->\n";
+		print "</script>\n";
+	    }
+	    print "<center><h3>Alkuperäinen syöte:</h3>\n";
+	    print "<p><tt>\n$entry\n</tt></p></center>\n";
+	    print $FH $entry;
+	    
+	    undef $FH; # close the file
+	}
+    }
+    # !www: tietoturvalla niin väliä
+    else {
+	open(FH, ">$HOME/tmp/input.txt" );
+	while (<>) {
+	    # convert lines with UPPER CASE letters and no lower case
+	    # letters to all lower case letters, this converts titles etc.
+	    # to lowercase when they wont be mistakenly taken as
+	    # abbreviations.
+	    if ( $_ =~ /[A-ZÅÄÖ]/ && $_ !~ /[a-zåäö]/ ) {
+		tr/A-ZÅÄÖ/a-zåäö/;
+	    }
+	    print FH $_;
+	}
+	close FH;
+    }
+}
+
+sub save_output {
+  my $OUTPUT = new IO::File (">$HOME/tmp/output.suo");
+  if ( defined $OUTPUT ) { # windows feilaa
+      if ( $www ) {
+	  print $OUTPUT $wwwoutput;
+      }
+      else {
+	  die;
+      }
+  }
+  else {
+    print STDERR "Something went wrong with tmp-dir)!\n";
+    die"$!"; 
+  }
+}
+
+# sijamuoto() ei välitä moniselitteisyydestä, vaan valitsee
+# ensimmäisen sopivan sijan!!
+# (voidaan rajoittaa montako_sijamuotoa-funktion avulla)
+# pitänee optimoida sekä järjestyksen että nopeuden kannalta...
+# hmm. NOM olisi sitten kai eka...
+sub sijamuoto { 
+  if ( $debug ) { print STDERR "sijamuoto($_[0])\n"; }
+  my $tulkinta = $_[0];
+  
+  if ( $language eq "fin" ) {
+    unless ( $tulkinta ) { return 0; }
+    if ( $tagger eq "twol" && $tulkinta ) {
+      while ( $tulkinta =~ s/\" [^=\"]+ =/\" / ) {} # yhdyssanojen etuosien merkitykset pois
+    }
+
+    # muuttaa   ("kansan_edustaja"  N GEN SG = DV-JA N NOM SG)
+    # muotoon ("kansan_edustaja"  DV-JA N NOM SG)
+    if ( $tulkinta =~ /(^| )NOM($| )/ ) { return 1; }
+    if ( $tulkinta =~ /(^| )GEN($| )/ ) { return 3;  }
+    if ( $tulkinta =~ /(^| )ESS($| )/ ) { return 10; }
+    if ( $tulkinta =~ /(^| )INE($| )/ ) { return 4;  }
+    if ( $tulkinta =~ /(^| )ELA($| )/ ) { return 5;  }
+    if ( $tulkinta =~ /(^| )ILL($| )/ ) { return 6;  }
+    if ( $tulkinta =~ /(^| )ADE($| )/ ) { return 7;  }
+    if ( $tulkinta =~ /(^| )ABL($| )/ ) { return 8;  }
+    if ( $tulkinta =~ /(^| )ALL($| )/ ) { return 9;  }
+    if ( $tulkinta =~ /(^| )INS($| )/ ) { return 12; }
+    if ( $tulkinta =~ /(^| )ABE($| )/ ) { return 13; }
+    if ( $tulkinta =~ /(^| )PTV($| )/ ) { return 2;  }
+    if ( $tulkinta =~ /(^| )TRA($| )/ ) { return 11; }
+    if ( $tulkinta =~ /(^| )CMT($| )/ ) { return 14; }
+
+
+    return 0; # <- ei muotoa
+  }
+  else {
+    print STDERR "Unsupported language ($language)!\n"; die();
+  }
+}
+
+###
+#
+# sopiiko_kontekstiin ()
+#
+# ottaa säännöstä aina ekan operaation,
+# testaa sen ( sopiiko_kontekstiin2() )
+# ja jatkaa loogisen operaation vaatimalla tavalla...
+sub sopiiko_kontekstiin {
+  if ( $debug ) { print STDERR "sopiiko_kontekstiin($_[0])\n"; }
+  # print STDERR "\n** $_[0] **";
+  my ($first, $rest, $operaatio);
+  $operaatio = $first = $rest = $_[0];
+  $operaatio =~ s/(\|\|).*$/$1/;
+  $operaatio =~ s/^.*(..)$/$1/;
+  unless ( $operaatio eq "||" ) { 
+    return sopiiko_kontekstiin2($first);
+  }
+  
+  $first =~ s/\|\|.*$//;
+  # tuhoa kunnes || -nerokasta...
+  #while ( $rest !~ s/^\|\|// ) { $rest =~ s/.//; }
+  $rest =~ s/^.*?\|\|//;
+  # print STDERR "OR";
+
+  if ( sopiiko_kontekstiin2($first) ) { return 1; }
+
+  return sopiiko_kontekstiin($rest);
+}
+
+sub sopiiko_kontekstiin2 {
+  if ( $debug ) { print STDERR "$debug_depth sopiiko_kontekstiin2($_[0])\n"; }
+  $etaisyys = my $laji = my $parametrit = $_[0];
+  $etaisyys =~ s/:.*$//;
+  unless ( $laji =~ s/^[\-\+]?\d+:// ) { print STDERR $_[0]; die(); }
+  
+  $laji =~ s/\(.*//;
+  
+  if ( $parametrit =~ s/^[^\(]*\(// ) { $parametrit =~ s/\)$//; }
+  else { $parametrit = ""; }
+  
+  # OPERAATIO VAIKO KÄÄNTEINEN OPERAATIO
+  my $etumerkki;
+  if( $laji =~ s/^\-// ) { $etumerkki = 0; }
+  else { $etumerkki = 1; }
+
+  # AGREE
+  # perii sijan ja luvun, ulkomaankieleissä ehkä muutakin
+  # koskee myös partitiivia (toisin kuin AGREE-CASE)
+  if ( $laji eq "AGREE" ) {
+    if ( !$etumerkki ) {
+	if ( $verbose ) { print STDERR "AGREE can not be (at the moment) a negative value!"; }
+      return 0; # <- cause failure (make it someone else's problem...)
+    }
+    # plain text
+    if ( $tagger eq "none" ) {
+	if ( &montako_sijamuotoa($pintamuoto[$etaisyys+15]) == 1 ) {
+	    $agreement_case =  &plain_text_case($pintamuoto[$etaisyys+15]);
+	    $agreement_number = "SG";
+	    return 1; 
+	}
+	return 0;
+    }
+
+    # must have a morphological form unless in plain-text mode
+    unless ( $morfo[$etaisyys+15] ) { return 0; }
+
+    if ( montako_sijamuotoa($pintamuoto[$etaisyys+15], $morfo[$etaisyys+15]) == 1 &&
+	 montako_lukua($pintamuoto[$etaisyys+15], $morfo[$etaisyys+15]) == 1 ) {
+	$agreement_case = kaanteissijamuoto(sijamuoto($morfo[$etaisyys+15]));
+	$agreement_number = kaanteissijaluku(luku($morfo[$etaisyys+15]));
+	
+	$agree_case_count++; # vain onnistuessa (tai-operaatio)       
+	$apukommentti = " $pintamuoto[15+$etaisyys] $agreement_number $agreement_case";
+	$apukommentti =~ s/_//g;	  
+	return 1; # onnistui
+    }
+    # joko moniselitteinen tai tulkinnaton =>
+    return 0; 
+  }
+  
+  # AGREE-CASE
+  # perii sijan
+  if ( $laji eq "AGREE-CASE" ) {
+    unless ( $morfo[$etaisyys+15] ) { return 0; }
+    unless ( $etumerkki ) {
+      if ( $verbose ) { 
+	print STDERR "AGREE-CASE can not have a negative value!";
+      }
+      return 0; # <- cause failure (make it someone else's problem...)
+    }
+
+    if ( montako_sijamuotoa($pintamuoto[15+$etaisyys], $morfo[$etaisyys+15]) == 1 ) {
+      if ( $tagger eq "none" ) {
+	$agreement_case = plain_text_case($pintamuoto[$etaisyys+15]);
+	print STDERR $agreement_case; die;
+      }
+      else {
+	$agreement_case = kaanteissijamuoto(sijamuoto($morfo[$etaisyys+15]));
+      }
+      $agree_case_count++; # vain onnistuessa (tai-operaatio)       
+      $apukommentti = " $pintamuoto[15+$etaisyys] " . kaanteissijamuoto(sijamuoto($agreement_case));
+      if ( $agreement_case eq "PTV" ) { # jos PTV niin NOM
+	$agreement_case = "NOM";
+      }
+      $apukommentti =~ s/_//g;	  
+      return 1; # onnistui
+    }
+    # joko moniselitteinen tai tulkinnaton =>
+    return 0; 
+  }
+  # AGREEMENT-WORD
+  # kongruoiva sana tai kongruoiva lyhenne
+  if ( $laji eq "AGREEMENT-WORD" ) {
+    unless ( $etumerkki ) {
+      if ( $verbose ) { print STDERR "AGREEMENT-WORD can not have (at the moment) a negative value!"; }
+      return 0; # <- cause failure (make it THEIR problem...)
+    }
+    # LYHENNE
+    # lyhenne()-funktio asettaa oikean sijamuodon... (toivon ma ;)
+    if ( $pintamuoto[15+$etaisyys] ne 
+	 mittalyhenne($pintamuoto[15+$etaisyys]) ) {
+      #print STDERR "qwre ", $pintamuoto[15+$etaisyys], " $muoto ";
+      $agreement_case = kaanteissijamuoto($muoto);
+      #print STDERR " ", $agreement_case, "\n";
+      if ( $agreement_case eq "PTV" || 
+	   $agreement_case eq "XXX" ) {
+	$agreement_case = "NOM";
+      }
+      
+      $agree_case_count++; # vain onnistuessa (tai-operaatio)       
+      $apukommentti = " $pintamuoto[15+$etaisyys] " . kaanteissijamuoto(sijamuoto($agreement_case));
+      $apukommentti =~ s/_//g;	  
+      return 1; # onnistui
+    }
+
+    # SANA
+    if ( $tagger eq "none" ) {
+      if ( montako_sijamuotoa($pintamuoto[15+$etaisyys], "") != 1 ) { return 0; }
+      $agreement_case = plain_text_case($pintamuoto[$etaisyys+15]);
+      if ( $agreement_case eq "PTV" ) { # jos PTV niin NOM
+	$agreement_case = "NOM";
+      }
+      $agree_case_count++; # vain onnistuessa (tai-operaatio)       
+      #print STDERR kaanteissijamuoto($agreement_case) . " $morfo[15+$etaisyys]"; die;
+      $apukommentti = " " . $pintamuoto[15+$etaisyys];
+      return 1;
+    }
+    
+    my $analyysit = $perusmuoto[15+$etaisyys];
+    while ( $analyysit ne "" ) { # yrittää ensin hevos_voimaa sitten voimaa...
+	my $head = $analyysit;
+      $head =~ s/\n.*$//s; # TWOLLISSA on monta...
+      $head =~ s/^.*\_//;
+
+      $analyysit =~ s/^[^\n]*($|\n)//s;
+      # KONGRUOIVA SANA
+      # print STDERR "GRUF $pintamuoto[$etaisyys+15] $morfo[$etaisyys+15]\n";
+      #print STDERR "WER $head\n";
+      if ( $kongruoiva_sana{$head} &&
+	   montako_sijamuotoa($pintamuoto[$etaisyys+15], $morfo[$etaisyys+15]) == 1 ) {
+	# die();
+	$agreement_case = kaanteissijamuoto(sijamuoto($morfo[$etaisyys+15]));
+	if ( $language eq "fin" ) {
+	  if ( $morfo[$etaisyys+15] =~ /(^| )PL($| )/ || # 245 markoissa ...
+	       sijamuoto($agreement_case) == 1 ) { # "245 markka" ei avata
+	    return 0;
+	  }
+	  if ( $agreement_case eq "PTV" ) { # jos PTV niin NOM
+	    $agreement_case = "NOM";
+	  }
+	}
+	$agree_case_count++; # vain onnistuessa (tai-operaatio)       
+	$apukommentti = " " . $pintamuoto[15+$etaisyys];
+	$apukommentti =~ s/_//g;	  
+	return 1; # onnistui
+      }
+    }
+    return 0 ;
+  }
+
+  # BASE
+  # onko haluttu perusmuoto
+  # tällä hetkellä ainakin haluttu muoto, ei vain ja ainoastaan
+  if ( $laji eq "BASE" ) {
+    if ( $tagger eq "none") { return ( plain_base($parametrit) == $etumerkki); } 
+    $parametrit =~ s/^\"//; $parametrit =~ s/\"$//;
+    if ( $perusmuoto[$etaisyys+15] =~ /^$parametrit$/ ) {
+      return (1 == $etumerkki); # onnistui 
+    }
+    return ( 0 == $etumerkki);
+  }
+  # BASE-REGEX
+  # vastaako perusmuoto säännöllistä lauseketta
+  # tällä hetkellä ainakin haluttu muoto, ei vain ja ainoastaan
+  if ( $laji eq "BASE-REGEX" ) {
+    if ( $tagger eq "none" ) { return 0; }
+    $parametrit =~ s/^\"//; $parametrit =~ s/\"$//;
+
+    if ( $perusmuoto[$etaisyys+15] =~ /^$parametrit$/m ) {
+	return (1 == $etumerkki);
+    }
+    return ( 0 == $etumerkki);
+  }
+
+  # CASE
+  # onko haluttu sija?
+  # plain-text: onko VAIN haluttu sija?
+  # muut: onko ainakin haluttu sija?
+  if ( $laji eq "CASE" ) {
+    if ( $tagger eq "none") {
+      if ( montako_sijamuotoa($pintamuoto[15+$etaisyys]) == 1 ) {
+    	if ( plain_text_case($pintamuoto[15+$etaisyys]) eq $parametrit ) {
+    	  return $etumerkki; # this m
+    	}
+      }
+      return (0 == $etumerkki);
+    }
+    # tutkitaan vain viimeisen sanan sijaa yhdyssanoissa
+    if ( $morfo[$etaisyys+15] ) {
+	my $tryme = $morfo[$etaisyys+15];
+	while ( $tryme =~ s/\" [^=\"]+ =/\" /g ) {}
+	if ( $tryme =~ /(^| )$parametrit($| )/ ) {
+	    return $etumerkki; # onnistui 
+	}
+    }
+    return (0 == $etumerkki);
+  }
+  # COMMENT
+  # löytyykö kommentista
+  if ( $laji eq "COMMENT" ) {
+    $parametrit =~ s/^\"//; $parametrit =~ s/\"$//;
+    if ( $etaisyys > 0 ) { 
+      if ( $verbose ) { print STDERR "Bad rule: COMMENT must precede the target word!\n";} 
+      # die();
+      return 0;
+    }
+    if ( $komme[$etaisyys+15] &&
+	 $komme[$etaisyys+15] =~ /$parametrit/ ) { return $etumerkki; }
+    return (0 == $etumerkki);
+  }
+  ## DD, DDMM, DDMMYY
+  if ( $laji eq "DD" ) {
+    return ( onko_DD($pintamuoto[$etaisyys+15]) == $etumerkki);
+  }
+  if ( $laji eq "DDMM" ) {
+    return ( onko_DDMM($pintamuoto[$etaisyys+15]) == $etumerkki);
+  }
+  if ( $laji eq "DDMMYY" ) {
+    return ( onko_DDMMYY($pintamuoto[$etaisyys+15]) == $etumerkki);
+  }
+  
+
+  # MORPHEME
+  # mikä tahansa morfeemi (NUM, CASE, INF)
+  if ( $laji eq "MORPHEME" ) {
+    if ( $tagger eq "none") { return 0; } 
+    if ( $morfo[$etaisyys+15] &&
+	 $morfo[$etaisyys+15] =~ /(^| )$parametrit($| )/ ) {
+	# print STDERR "$morfo[$etaisyys+15] :$parametrit\n";
+      return $etumerkki; # onnistui 
+    }
+
+    return (0 == $etumerkki);
+  }
+
+  # NUM
+  # onko yksikkö/monikko (/duuali...)
+  # vrt. CASE (nyt lähes identtinen koodi...)
+  if ( $laji eq "NUM" ) {
+    # taggamaton teksti =>
+    if ( $tagger eq "none" ) {
+	if ( $parametrit eq "SG" &&
+	     montako_sijamuotoa($pintamuoto[15+$etaisyys]) > 1 ) {
+	    return $etumerkki;
+	}
+	return 0;
+    }
+    # tagatut syötetyypit =>
+
+    unless ( $morfo[$etaisyys+15] ) { return 0; }
+
+    # tutkitaan vain viimeisen sanan sijaa yhdyssanoissa
+    my $tryme = $morfo[$etaisyys+15];
+    while ( $tryme =~ s/\" [^=\"]+ =/\" /g ) {}
+
+    if ( $tryme =~ /(^| )$parametrit($| )/ ) {
+	return $etumerkki; # onnistui 
+    }
+
+    return (0 == $etumerkki);
+  }
+
+  # NUMBER
+  # onko numero
+  if ( $laji eq "NUMBER" ) {
+    return (onko_numero($pintamuoto[15+$etaisyys]) == $etumerkki); 
+  }
+  # POS
+  if ( $laji eq "POS" ) {
+    if ( $morfo[$etaisyys+15] &&
+	 $morfo[$etaisyys+15] =~ /(^| )$parametrit($| )/ ) {
+      return $etumerkki; # onnistui 
+    }
+    if ( $tagger eq "none") { return 0; } 
+    return ( 0 == $etumerkki);
+  }
+
+  # REGEX
+  # säännöllinen lauseke (vrt. STRING)
+  # käyttäjä voi mokata ja pahasti...
+  # tukee LIMBOA
+  if ( $laji eq "REGEX" ) {
+    $parametrit =~ s/^\"//;
+    $parametrit =~ s/\"$//;
+    if ( $komme[15+$etaisyys] && 
+	 $korvattu[15+$etaisyys] &&
+	 $komme[15+$etaisyys] =~ /LIMBO/ ) {
+      if ( $korvattu[15+$etaisyys] =~ /$parametrit/ ) {
+	# print STDERR $pintamuoto[15+$etaisyys]; die();
+	return $etumerkki;
+      }
+      return ( 0 == $etumerkki);
+    }
+
+    if ( $pintamuoto[15+$etaisyys] =~ /$parametrit/ ) { return $etumerkki; }
+
+    return ( 0 == $etumerkki);
+  }
+  # SENTENCE
+  if ( $laji eq "SENTENCE" ) {
+    my $tmp_etaisyys = $etaisyys;
+    if ( $etaisyys < 0 ) {
+      
+      while ( $etaisyys > -15 &&
+	      $pintamuoto[15+$etaisyys] !~ /^<(s|utterance)/ ) {
+	my $apuparametrit = $etaisyys . ":" . $parametrit;
+	#print STDERR "Looping... $apuparametrit\n";
+
+	if ( sopiiko_kontekstiin($apuparametrit) ) {
+	  # die();
+	  return 1;
+	}
+	$etaisyys--;
+      }
+    }
+    elsif ( $etaisyys > 0 ) {
+      while ( $etaisyys < 15 &&
+	      $pintamuoto[15+$etaisyys] !~ /^<(s|utterance)/ ) {
+	my $apuparametrit = $etaisyys . ":" . $parametrit;
+	print STDERR "Looping... $apuparametrit\n";
+	if ( sopiiko_kontekstiin($apuparametrit) ) {
+	  # die();
+	  return 1;
+	}
+	$etaisyys++;
+      }
+    }
+    $etaisyys = $tmp_etaisyys;
+    return 0;
+  }
+
+
+  # STRING
+  # identtinen merkkijono
+  # -lisää regexp-neutralisointi
+  # tukee LIMBOA
+  if ( $laji eq "STRING" ) {
+    $parametrit =~ s/^\"//; $parametrit =~ s/\"$//;
+    if ( $komme[15+$etaisyys] && $korvattu[15+$etaisyys] &&
+	 $komme[15+$etaisyys] =~ /LIMBO/ ) {
+      if ( $parametrit eq $korvattu[15+$etaisyys]) { return $etumerkki; }
+      return ( 0 == $etumerkki);
+    }
+    if ( $parametrit eq $pintamuoto[15+$etaisyys]) {
+      # print STDERR $pintamuoto[15+$etaisyys]; die();
+      return $etumerkki;
+    }
+    return ( 0 == $etumerkki);
+  }
+
+  # SYNTAX
+  # conexor-specific support (for now)
+  if ( $laji eq "SYNTAX" ) {
+    if ( !$synta[15+$etaisyys] ) { return 0; }
+    if ( $synta[15+$etaisyys] =~ /$parametrit/ ) { return 1; }
+    return 0;
+  }
+  # XML-ARGUMENT()
+  if ( $laji eq "XML-ARGUMENT" ) {
+    # jos ei XML-moodi niin epäonnistu
+	 if ( $output ne "xml" ) { return 0; }
+    if ( !$argument[15+$etaisyys] ) { return (0 == $etumerkki); }
+    $parametrit =~ s/^\"//;
+    $parametrit =~ s/,/\" /g;
+    $parametrit =~ s/=/=\"/g;
+    if ( $argument[15+$etaisyys] =~ /$parametrit/ ) {
+      return $etumerkki;
+    }
+    return (0 == $etumerkki);
+  }
+  # XML
+  if ( $laji eq "XML-TAG" ) {
+    if ( $output ne "xml" ) { return 0; }
+    if ( !$tag[15+$etaisyys] ) { return (0 == $etumerkki); }
+    if ( $tag[15+$etaisyys] =~ /<$parametrit/ ) {
+      return $etumerkki;
+    }
+    return (0 == $etumerkki);
+  }
+  # YEAR()
+  # onko vuosi
+  if ( $laji eq "YEAR" ) {
+    return ($etumerkki == onko_vuosi($pintamuoto[15+$etaisyys]));
+  }
+
+  print STDERR "LAJI \"$laji\" PARAMETRIT \"$parametrit\" $_[0]\n";
+  die();
+  #return 0;
+}
+
+
+###
+#
+# syvamuoto_pintamuotoon($syvamuoto)
+#
+# saa parametrinaan syvamuodon, johon 
+# 1) liitetään luku ja sija ja 
+# 2) se muutetaan pintamuotoon
+sub syvamuoto_pintamuotoon {
+  if ( $debug ){ print STDERR "$debug_depth syvamuoto_pintamuotoon($_[0])\n"; }
+  my $syvamuoto = $_[0];
+  # jos yhdyssana, huolehtii vokaalisonnusta: höyry#laiva+ssA
+  if ( $syvamuoto =~ /\#/ ) {
+    my $vasen = my $oikea = $syvamuoto;
+    $vasen =~ s/\#.*$//;
+    $oikea =~ s/^[^\#]*\#//;
+    return $vasen . "-" . syvamuoto_pintamuotoon($oikea);
+  }
+  if ( $luku == 14 || $muoto == 12 || $muoto == 14 ) { 
+    $syvamuoto .= "I"; 
+  } # <- monikko, CMT&& INS
+  
+  
+  return pintamuotoon(katenoi_sija($syvamuoto, $muoto));
+}
+
+
+### 
+#
+# taivuta_numero($luku)
+#
+# Avaa numeron kokonais- tai desimaalilukuna
+# -kliitit ei kuulu tänne...toisaalta pikahakuja vaikea tehdä ilmaa
+# liimausta, muuten yHZE+cliitti
+sub taivuta_numero {
+  if ( $debug ) { print STDERR "$debug_depth taivuta_numero($_[0])\n"; }
+  my $taivutettava = $_[0];
+  my $prefix = "";
+  if ( $taivutettava =~ s/^\+// ) { $prefix = "plus "; }
+  elsif ( $taivutettava =~ s/^\-// ) { $prefix = "miinus "; }
+  elsif ( $taivutettava =~ s/^±// ) { $prefix = "plus miinus "; }
+  
+  # desimaalipiste desimaalipilkuksi
+  $taivutettava =~ s/^([0-9]+)\.([0-9]+)$/$1,$2/;
+
+  if ( $taivutettava =~ /^\d+$/ ) { # kokonaisluku
+    $taivutettava = taivuta_numero2($taivutettava) . $clitic; 
+    $taivutettava =~ s/nns/ns/; # kymmenen +nsa
+    return $prefix . $taivutettava;
+  }
+  elsif ( $taivutettava =~ /^\d+,\d+$/ ) { # liukuluku
+    $taivutettava = desitaivu($taivutettava) . $clitic;
+    $taivutettava =~ s/nns/ns/; # kymmenen +nsa
+    return $prefix . $taivutettava;
+  }
+
+  print STDERR "$taivutettava"; die();
+}
+
+sub taivuta_numero2 {
+  if ( $debug ) { print STDERR "$debug_depth taivuta_numero2($_[0])\n"; }
+  # on numero välillä 0 - 999 999 999
+  if ( $_[0] !~ /^\d{1,9}$/ ) { 
+    if ( $_[0] =~ /^\d+$/ ) { return yksitellen($_[0], 0, 0); } # ylipitkä, avaa yksitellen
+    if ( $debug ) { print STDERR "\nLAITON SYÖTE*$_[0] "; die; } # die(); 
+    return;
+  }
+  
+  my ($kolme_lukua, $avattuna );
+  my $lukua_jaljella = $_[0]; 
+  my $tuhatpotenssi = 0; # 0: >1000, 1: tuhatta, 2: miljoonaa
+  my $kokoroska = "";
+  
+  while ( $lukua_jaljella ne "" ) {
+    $avattuna = ""; # tuhatta tai miljoonaa
+    $kolme_lukua = $lukua_jaljella;
+    $lukua_jaljella =~ s/([0-9]?[0-9]?[0-9]?)$//; # otetaan <3 vikaa pois ($1)
+    $kolme_lukua = $1; # ... ja talletetaan ne toisaalle
+    
+    if ( $tuhatpotenssi > 0 && $kolme_lukua == 1 ) {} # tuhat (vs. yksi)
+    else {
+      $avattuna = aukikirjoita($kolme_lukua, $tuhatpotenssi); # tuhatta
+    }
+    
+    if ( $tuhatpotenssi == 1 && $kolme_lukua > 0 ) { #tuhannet
+      if ( $perusluku == 1 && 
+	   $muoto == 1 &&
+	   $kolme_lukua != 1 ) { # 2-999-tuhatta
+	$kokoroska = "tuhatta " . $kokoroska; # ENTÄS MONIKKO?
+      }
+      elsif ( $perusluku == 1) { # n tuhatta
+	$kokoroska = "$numero[12][$luku+$muoto] " . $kokoroska;
+      }      
+      else { # perusluku = 0
+	$kokoroska = "$numero[26][$luku+$muoto] " . $kokoroska;
+      }
+    }
+    elsif ( $tuhatpotenssi == 2 && 
+	 $kolme_lukua > 0 ) { #miljoonat
+      if ( $perusluku == 1 &&
+	   $muoto == 1 &&
+	   $kolme_lukua != 1 ) {
+	$kokoroska = "miljoonaa " . $kokoroska; # ENTÄS LUKU??
+      }
+      elsif ( $perusluku == 1 ) {
+	$kokoroska = "$numero[13][$luku+$muoto] " . $kokoroska;
+      }
+      else { # järjestysluku:
+	$kokoroska = "$numero[27][$luku+$muoto] " . $kokoroska;
+      }
+    }
+    $kokoroska = $avattuna . $kokoroska;
+    
+    $tuhatpotenssi++;
+  }
+#  $kokoroska =~ s/ +$//;
+  
+  if ( $kokoroska eq "" ) {
+    if ( $debug ) { print STDERR " $muoto $luku $perusmuoto[15] *"; }
+    $kokoroska = reformo("nolla"); # taivutetaan nolla
+  } 
+
+  return $kokoroska;
+}
+
+
+
+sub tarkkuuslavenna {
+  if ( $debug ){ print STDERR "$debug_depth tarkkuuslavenna($_[0], $_[1]):\n"; }
+  my $string = tarkkuuslavenna2($_[0], $_[1]);
+  #$string =~ s/^\-+//;
+  #$string =~ s/\-+$//;
+  #$string =~ s/\-+/\-/g;
+  $string =~ s/ +/ /g;
+  $string =~ s/^ //;
+  $string =~ s/ $//;
+  
+  return $string;
+}
+  
+sub tarkkuuslavenna2 {
+    if ( $debug ) { print STDERR "tarkkuuslavenna2():\n"; }
+    my $mista = my $vasen = my $oikea = my $merkki = $_[0];
+    my $isous = $_[1];
+    if ( $mista eq "" ) { return ""; }
+
+    #===> split token into halves:
+
+    # split lowerUPPER combination in two halves and do them separately:
+    if ( $mista =~ /([a-zåäö])([A-ZÅÄÖ])/ ||
+	 # string-string ('-' disappears)
+	 $mista =~ /([a-zåäöA-ZÅÄÖ])\-([a-zåäöA-ZÅÄÖ])/  ) {
+	my $left = $` . $1;
+	my $right = $2 . $'; #';
+	return tarkkuuslavenna2($left, $isous) ." ". 
+	    tarkkuuslavenna2($right, $isous);
+    }
+
+    # split at given CHAR and expand the halves
+    if ( $mista =~ /[\.\-\/:\']/ ) {
+	my $replacement = 
+	    tarkkuuslavenna2($`, $isous) . " " .
+	    avaa_merkki($&) . " " .
+	    tarkkuuslavenna2($', $isous); # perl mode goes nuts... ');
+	return $replacement;
+    }
+
+
+#  if ( $mista =~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+(\-[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+)+$/ ) {
+#      my $tail =~ s/^.*\-//;
+#      $mista =~ s/\-[^\-]+$//;
+#      return tarkkuuslavenna2($mista) ."-". tarkkuuslavenna2($tail);
+#  }
+    
+    if ( $mista =~ /[^\-]\-[^\-]/ || 
+	 $mista =~ /^\-[A-ZÅÄÖ]?[a-zåäö]+/ ||
+	 $mista =~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+\-$/ ) {
+	$vasen =~ s/\-.*$//;
+	$oikea =~ s/^[^\-]*\-//;
+	$merkki =~ s/^[^\-]*\-.*$/\-/;
+	if ( $vasen eq "" ) { return "-" . tarkkuuslavenna2($oikea, $isous); }
+	if ( $oikea eq "" ) { return tarkkuuslavenna2($vasen, $isous) . "-"; }
+	if ( $verbose ) { print STDERR "FIX: $mista\t#$vasen#\t#$merkki#\t#$oikea#\n"; }
+	return tarkkuuslavenna2($vasen, $isous) . " " . avaa_merkki($merkki, $isous) . " " . tarkkuuslavenna2($oikea, $isous);
+    }
+    # <=== end token splitting
+    
+    # some hacks
+    if ( $mista eq "com" ) { return "kom"; }
+    if ( $mista eq "www" ) { return "veeveevee"; }
+    
+    # if ( $mista =~ /[cqwxzå_\d\~]/ ) { return " " . yksitellen($mista, $isous, 0); }
+
+#    if ( $mista =~ /^[0-9]+$/ ) { return yksitellen($mista, $isous, 1); }
+
+#    if ( $mista !~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞa-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ ) { return " " . yksitellen($mista, $isous, 0); }
+    
+#    if ( $mista !~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ ) {
+#	if ( $verbose ) { print STDERR "#$mista\n"; }
+#	return yksitellen($mista, $isous, 1); 
+#    }
+	
+
+
+    return yksitellen($mista, $isous, 1);
+    # vaihtoehtoisesti voisi lukea tavu kerrallaan:
+    #return tavulavenna(tavuta($mista));
+}
+
+# DOKUMENTOI
+sub tavulavenna {
+  if ( $debug ) { 
+      print STDERR "tavulavenna($_[0])\n"; 
+  }
+  my $tavut = $_[0];
+
+  if ( $tavut eq "" ) { return ""; }
+
+  my $result = "";
+  while ( $tavut ne "" ) {
+    my $vasen = $tavut;
+    $vasen =~ s/\-.*//;
+    $tavut =~ s/[^\-]*($|\-)//;
+    # laillinen tavu:
+    my $store = $debug;
+    $debug = 1;
+    if ( onko_tavu($vasen) ) { $result .= $vasen; }
+    else { 
+	print "Huono tavu5: $vasen ($_[0];)\n";
+	$debug = $store; 
+	$result .= " " .yksitellen($vasen, 1, 1) . " "; 
+    }
+    $debug  = $store;
+  }
+  $result =~ s/\s+$/ /;
+  return $result;
+}
+
+
+
+# tämä funktio pitäisi kirjoittaa 
+sub tavuta {
+  if ( $debug ) {
+      print STDERR "tavuta($_[0])\n"; 
+  }
+
+  if ( !$_[0] ) { die; }
+  my $sana = $_[0];
+
+  # let us split space-delimited areas and handle them separately
+  # (since connexor has multiword tokens):
+  if ( $sana =~ / +/ ) {
+    return tavuta($`) . " " . tavuta($'); #'emacs goes nuts) 
+  }
+
+  # klusiilien välistä, sana ei saa loppua (vrt. "sahlstedt")
+  # B-klusiili (ei 't' sillä doubtfire)
+  if ( $sana =~ /b([cdfgkpq].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/b[cdfgkpq].+$/b/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # C-klusiili (ei 't' sillä doubtfire)
+  if ( $sana =~ /c([bcdfgmptq].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/c[bcdfgmptq].+$/c/; # paitsi scmidt
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }
+  # D-klusiili (ei 't' sillä doubtfire)
+  if ( $sana =~ /d([bcfgkpq].)/ ) { #schmidt
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/d[bcfgkpq].+$/d/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }
+  # F
+  if ( $sana =~ /f([bcdgkpqvw].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/f[bcdgkpqvw].+$/f/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+
+  # G
+  if ( $sana =~ /g([bcdfkmpqt].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/g[bcdfkmpqt].+$/g/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # H
+  if ( $sana =~ /h([bdgh].)/ ) {
+       my $vasen = my $oikea = $sana;  
+      $vasen =~ s/h[bdgh].+$/h/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }      
+  # K
+  if ( $sana =~ /k([bcdfgkpq].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/k[bcdfgkpq].+$/k/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # L
+  if ( $sana =~ /l([q].)/ ) {
+      my $vasen = $` . "l";
+      my $oikea = $1 . $'; #'  
+      # print STDERR "$vasen $oikea $sana\n";
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # M
+  if ( $sana =~ /m([gklq].)/ ) {
+       my $vasen = my $oikea = $sana;  
+      $vasen =~ s/m[gklmq].+$/m/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }     
+  # N
+  if ( $sana =~ /n([blqw].)/ ) {
+       my $vasen = my $oikea = $sana;  
+      $vasen =~ s/n[blnqw].+$/n/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }  
+
+  # P
+  if ( $sana =~ /p([bcdgkq].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/p[bcdgkq].+$/p/;
+      $oikea =~ s/^$vasen//;
+      # print STDERR "$vasen $oikea $sana\n";
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # S
+  if ( $sana =~ /s([bdq].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/s[bdq].+$/s/;
+      $oikea =~ s/^$vasen//;
+      # print STDERR "$vasen $oikea $sana\n";
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+
+  # T
+  if ( $sana =~ /t([bcdfgkpqw].)/ ) {
+      my $vasen = $` . "t";
+      my $oikea = $1 . $'; #'  
+      # print STDERR "$vasen $oikea $sana\n";
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+
+  # V
+  if ( $sana =~ /v([bcdfgjkmnpqtvw].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/v[bcdfgjkmnpqtvw].+$/v/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+  # W
+  if ( $sana =~ /w([bcpvw].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/w[bcpvw].+$/w/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  }
+  # X
+  if ( $sana =~ /x([cfpt].)/ ) {
+      my $vasen = my $oikea = $sana;  
+      $vasen =~ s/x[cfpst].+$/x/;
+      $oikea =~ s/^$vasen//;
+      return tavuta($vasen) . "-" . tavuta($oikea);
+  } 
+
+  # pilko vierasperäisiä nimiä etutavun mukaan...
+  # ahl-qvist lund-ström karl-gren ling-vitsi :)
+  if ( $sana =~ /^(.*?[aeiouyäö](cht?|ck|ff|gn|h[ln]|hrn|l[dfglm]s?|ght|jds?|kh|ks|ln|mbs?|ngs?|n[kns]|nd[st]?|nsk|nst|ph|pt|rs[hkt]?|r[lmnz]s?|rt[hs]?|sch|sh|sts|th|tch|vv|x|zz))([bcdfghjklmnqrstvwxz]+[aeiouyäö].*)$/ ){
+
+      if ( $debug ){ print STDERR "morph end detected; $sana = $1 . $3\n"; }
+      my $left = $1;
+      my $right = $3;
+      return tavuta($left) . "-" . tavuta($right);
+  } 
+  # pilko jälkitavun mukaan
+  if ( $sana =~   /^(.*?[aeiouyäö][bcdfghjklmnqrstvwxz]+?)((b[jlr]|ch|cl|cr|f[jlr]|gh|gl|gr|hj|kl|kr|lj|mn|phr|pl|pr|ps|qv|rh|schm|scr|sk|skj|st|s?tj|s?tr|tsh|tv|vr)[aeiouyäö].*)$/ ) {
+      if ( $debug ){ print STDERR "morph start detected: $sana  = $1 . $2\n"; }
+      my $left = $1;
+      my $right = $2;
+      return tavuta($left) . "-" . tavuta($right);    
+  }   
+    
+  # <= pilkkominen päättyy
+  $sana =~ s/_/\-/g; # <- FDG:n yhdyssanarjat tavuviivoiksi
+  #if ( $verbose ) { print STDERR "## $sana ##"; }
+  $sana =~ tr/A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ/a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüış/;
+  $sana =~ s/\-/¤¤¤/g;
+  $sana =~ s/aa([aeiouäö])/aa-$1/g;
+  $sana =~ s/ee([aeiouäö])/ee-$1/g;
+  $sana =~ s/ii([aeiouäö])/ii-$1/g;
+  $sana =~ s/oo([aeiouäö])/oo-$1/g;
+  $sana =~ s/uu([aeiouäö])/uu-$1/g;
+  $sana =~ s/yy([aeiouäö])/yy-$1/g;
+  $sana =~ s/ää([aeiouäö])/ää-$1/g;
+  $sana =~ s/öö([aeiouäö])/öö-$1/g;
+
+  # tavuviiva CV:n eteen
+  $sana =~ s/([bcdfghjklmnpqrstvwxzßçğş][aeiouyàáâãäöæèéêëìíîïòóôõöøùúûüıÿ])/\-$1/g;
+  $sana =~ s/^([bcdfghjklmnpqrstvwxz]*)\-/$1/; # k-lap-pi => klap-pi
+  $sana =~ s/¤¤¤/\-/g;
+  $sana =~ s/\-\-/\-/g;
+  # nämä sopivivat paremmin morfologisen tiedon yhteyteen
+  $sana =~ s/a([eoyäö])/a-$1/g;
+  $sana =~ s/e([aoyäö])/e-$1/g;
+  $sana =~ s/i([aoyäö])/i-$1/g;
+  # mutta hius, viu-lu (poikkeaa tehtävän annosta!)
+  $sana =~ s/o([aeyäö])/o-$1/g;
+  $sana =~ s/u([aeyäö])/u-$1/g;
+  $sana =~ s/y([aeouä])/y-$1/g;
+  $sana =~ s/ä([aeouö])/ä-$1/g;
+  $sana =~ s/ö([aeouä])/ö-$1/g;
+
+
+
+  # pikku extra: poistaa kolmen vokaalin yhdistelmät laittomina
+  # (saa aikaan yllättävän oikean näköistä tavutusta...)
+  # rekursiivisesti 
+  while ( $sana =~ s/([aieouyäö]{2})([aeiouyäö])/$1-$2/ ) {}
+  #if ( $verbose ) { print STDERR "## $sana ##\n"; }
+
+  return $sana;
+}
+
+sub token2snt {
+  if ( $verbose ) {
+    print STDERR "Tagged word-per-line text into utterance-per-line-format.\n";
+  }
+  my $line = "";
+  my $input_file = $_[0];
+  my $output_file = $_[1];
+  open(INPUT, "$HOME/tmp/$input_file");
+  open(OUTPUT, ">$HOME/tmp/$output_file");
+  while(<INPUT>) {
+    chop();
+    if ( /^<(utterance|s)>$/ ) {
+      $line =~ s/\s+$//;
+      if ( $line !~ /^\s*$/ ) {
+	print OUTPUT "$line\n";
+      }
+      print OUTPUT "<utterance>\n";
+      $line = "";
+    }
+    else { $line .= $_ . " "; }
+  }
+  print OUTPUT "$line\n";
+  close (INPUT);
+  close (OUTPUT);
+}
+
+sub tulosta {
+#  print "TULOSTA ($output):\n";
+    if ( $debug ) { print STDERR "tulosta(\"$pintamuoto[1]\")\n";  }
+    if ( $pintamuoto[1] eq "__HEADER__" ) { return; }
+
+    $pintamuoto[1] =~ s/^\s+//;
+    $pintamuoto[1] =~ s/\s+$//;  
+    if ( $korvattu[1] ) { 
+	$korvattu[1] =~ s/^\s+//;
+	$korvattu[1] =~ s/\s+$//;
+    }
+    
+    # MURREMUUNNOKSET, ei toimi pakkolavennuksissa...
+    if ( $dialect && ( !$language || $language eq "fin" )) {
+	print STDERR "Unable to dialectize...\n";
+	undet $dialect;
+	if ( $dialect eq "turku" ) {
+	    if ( $korvattu[1] ) {
+		$korvattu[1] = fin_turunna($korvattu[1]);
+	    }
+	    else {
+		my $murresana = fin_turunna($pintamuoto[1]);
+		if ( $murresana =~ /^[a-yäö]+$/ ) {
+		    $korvattu[1] = $murresana;
+		}
+	    }
+	}
+	elsif ( $dialect eq "savo" ) {
+	    if ( $korvattu[1] ) {
+		$korvattu[1] = fin_savonna($korvattu[1]);
+	    }
+	    else {
+		my $murresana = fin_savonna($pintamuoto[1]);
+		if ( $murresana =~ /^[a-yäö]+$/ ) {
+		    $korvattu[1] = $murresana;
+		}
+	    }
+	}
+    }
+    #print STDERR "2FORCE $pintamuoto[1]\n";
+    # FORCE eli pakkolavennuskama...
+    if ( $force ) {
+	pakkolavenna();
+    } # FORCE lopahtaa
+    
+    
+    # perkele: 0 on poikkeus... ei näy  $pintamuoto[1] ):ssä
+    # (ei voi käyttää ($korvattu):na )
+    
+    if ( $output eq "plain-text" || $output eq "sapi4" ) {
+	#if ( $header_printed ne "yes" && $output eq "sapi4" ) {
+	#  $header_printed = "yes";
+	#  print $header;
+	#}
+	if ( $output eq "sapi4" && $tag[1] ) {
+	    $tag[1] =~ s/^\s+//;
+	    print "$tag[1] ";
+	}	 
+	
+	if ( $korvattu[1] &&
+	     $korvattu[1] ne $pintamuoto[1] ) { # HYBRID: -nimi
+	    unless ( $korvattu[1] eq "[SILENCE]" ) { 
+		#print"<PRON SUB=\"$korvattu[1]\" RULE=\"$komme[1]\"> $pintamuoto[1] </PRON>\n";
+		#print"$korvattu[1] ($pintamuoto[1] $komme[1])\n";
+		print "$korvattu[1] "; # ($pintamuoto[1] $komme[1])\n";
+	    }
+	}
+	elsif ( $pintamuoto[1] =~ /^<\/?(s|utterance|speaker|suopuhe)?>$/ ) { print"\n"; }
+	else {
+	    
+	    print"$pintamuoto[1] "; # "\n"; 
+	}
+    }
+    # XML-MODE OUTPUT
+    elsif ( $output eq "xml" ) { # print xml	
+      	# PRINT HEADER =>
+	if ( $header_printed eq "no" ) {
+	    $header_printed = "yes";
+	    if ( $www ) { $wwwoutput .= $header; }
+	    else { print $header; }
+	} # <= PRINT HEADER
+	
+	
+	if ( $pintamuoto[1] =~ /^<utterance>$/ ) {
+	    if( $www ) { $wwwoutput .= "  </utterance>\n"; }
+	    else { print "  </utterance>\n"; }
+	    
+	    if ( !$morfo[2] || $morfo[2] ne "__EOF__" ) {
+		if( $www ) { $wwwoutput .= "  <utterance>\n"; }
+		else { print "  <utterance>\n"; }  
+	    }
+	    # TAIL (presupposes <utterance> as last input line)
+	    elsif ( $morfo[2] && $morfo[2] eq "__EOF__" ) {
+		if( $www ) { $wwwoutput .= " </speaker>\n</suopuhe>\n"; }
+		else { print " </speaker>\n</suopuhe>\n"; }
+	    }
+	    return "";
+	}
+    
+#    if ( $pintamuoto[1] =~ /^<\/?suopuhe>$/ )  
+#    { print "$pintamuoto[1]\n"; return "";}
+#    if ( $pintamuoto[1] =~ /^<\/?speaker>$/ )  
+#    { print " $pintamuoto[1]\n"; return ""; }
+#    if ( $pintamuoto[1] =~ /^<\/?utterance?>$/ ) 
+#    { print "  $pintamuoto[1]\n"; return ""; }
+    
+	if ( $pintamuoto[1] =~ /^<.+>$/ &&
+	     !$komme[1] && # lavennettu URL muotoa <http://...>
+	     $pintamuoto[1] !~ /^<!\-\-/ ) {
+	    if ( $www ) { print "&lt;-- unknown tag: $pintamuoto[1] --&gt;\n"; }
+	    else { print "<!-- unknown tag: $pintamuoto[1] -->\n"; }
+	    return "";
+	}
+	
+	my $pos = "unknown";
+	
+	if ( $korvattu[1] &&
+	     $korvattu[1] ne $pintamuoto[1] ) {
+	    if ( onko_numero($pintamuoto[1]) ) { $pos = "num"; }
+	    elsif ( $pintamuoto[1] =~ /^[1-9]\d*\.$/ ) { $pos = "num"; }
+	    
+	    elsif ( $komme[1] &&
+		    $komme[1] =~ /^(A|A\/N|N|NOUN|NUM)( .*)?$/ ) {
+		$morfo[1] = $komme[1];
+		$morfo[1] =~ s/ .*$//;
+		$pos = hae_POS();
+		# $pos =~ tr/A-Z/a-z/;
+	    }
+	    elsif ( $pintamuoto[1] =~ /^[.,;:!?]$/ ) { $pos = "punc"; }
+	    elsif ( $pintamuoto[1] =~ /^(.|[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]\.)$/ ) { $pos = "char"; }
+	    else { $pos = hae_POS();} 
+	} # does "ME", FIX BETTER to "ABBR" , NUM or something
+	else { $pos = hae_POS(); }
+	
+	if ( $pos eq "unknown" &&
+	     $pintamuoto[0] =~ /^[.;:!?]$/ &&
+	     ( $pintamuoto[1] =~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ][a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ ||
+	       $pintamuoto[1] =~ /^(af|de|van|von)$/ )) {
+	    $pos = "prop";
+	}
+	if ( $tag[1] ) {
+	    if ( $www ) { $wwwoutput .= "   <$tag[1]>\n"; }
+	    else { print "   <$tag[1]>\n"; }
+	}	   
+	
+	if ( $www ) { $wwwoutput .= "   <token"; }
+	else { print"   <token"; }
+	# tulosta lisäargumentit
+	if ( $argument[1]) { 
+	    $argument[1] =~ s/^\s+//;
+	    if ( $www ) { $wwwoutput .= " $argument[1]"; }
+	    else { print " $argument[1]"; }
+	}	  
+	
+	
+	if ( $tagger eq "twol" ) {
+	    if ( !$korvattu[1] ) { $pintamuoto[1] =~ s/_//g; }
+	}
+	
+	if ( $pos ne "unknown" ) { 
+	    if ( $www ) { $wwwoutput .=" pos=\"$pos\""; }
+	    else { print " pos=\"$pos\""; }
+	} 
+	
+#    # alkukahdennus
+#    if ( loppukahdennussana() eq "yes" ) { 
+#	print" triggers_doubling=\"yes\"";
+#    }
+	# ENTÄS PAINOTUS?
+
+	my $apu = $pintamuoto[1];
+	$apu =~ tr/A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ/a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüış/;
+	if ( $komme[1] && $korvattu[1] ne $pintamuoto[1] &&
+	     $korvattu[1] ne $apu ) {
+	    $pintamuoto[1] =~ s/\"/\\\"/g;
+	    if ( $www ) { $wwwoutput .=" original=\"$pintamuoto[1]\"> "; }
+	    else { print " original=\"$pintamuoto[1]\"> "; }
+	    
+	    unless  ( $korvattu[1] eq "[SILENCE]" ) {
+		# phrasify digits (make this a sub)
+		if ( $komme[1] && $komme[1] =~ /PhrasifyDigits/ ) {
+		    my $x = $korvattu[1];
+		    if ( $x =~ /((nolla|yksi|kaksi|kolme|neljä|viisi|kuusi|seitsemän|kahdeksan|yhdeksän) ){3}/ ) {
+			my $newx = "";
+			while ( $x =~ /^\S+\s\S+\s\S+\s/ ) {
+			    my $y = $x;
+			    $y =~ s/^(\S+\s\S+\s).*$/$1/;
+			    $x =~ s/^\S+\s\S+\s//;
+			    $newx .= $y . " <phrase/> ";
+			}
+			$korvattu[1] = "<phrase/> " . $newx . $x;
+		    }
+		}
+		elsif ( $komme[1] && $komme[1] =~ /PhrasifyEmail/ ) {
+		    $korvattu[1] =~ s/ (piste|ät) / <phrase\/> $1 <phrase\/> /g;
+		    $korvattu[1] .= " <phrase/>";
+		}
+		elsif ( $komme[1] && $komme[1] =~ /PhrasifyNumber/ ) {
+		    $korvattu[1] =~ s/(tuhatta|miljoonaa) (([a-zäö]+)sataa([a-zäö]+)kymmentä)/$1 <phrase\/> $2/g; 
+		}
+		elsif ( $komme[1] && $komme[1] =~ /PhrasifyDMY/ ) {
+		    $korvattu[1] =~ s/kuuta /kuuta <phrase\/> /;
+		}
+		
+		elsif ( $komme[1] && $komme[1] =~ /BreakAll/ ) {
+		    $korvattu[1] =~ s/ / <break\/> /g;
+		}
+		elsif ( $komme[1] && $komme[1] =~ /PhrasifyAll/ ) {
+		    $korvattu[1] =~ s/ / <phrase\/> /g;
+		}
+		
+		$korvattu[1] =~ s/\s+/ /g;
+		if ( $www ) { $wwwoutput .= $korvattu[1]; }
+		else { print $korvattu[1]; }
+		
+	    }
+	}
+	else {
+	    if ( $www ) { $wwwoutput .= "> $pintamuoto[1]"; }
+	    else { print "> $pintamuoto[1]"; }
+	}
+	if ( $www ) { $wwwoutput .= " </token>"; }
+	else { print " </token>"; }
+	
+	if ( $komme[1] && 
+	     $korvattu[1] ne $pintamuoto[1] ) { 
+	    if ( $www ) { $wwwoutput .= " <!-- $komme[1] -->"; }
+	    else { print " <!-- $komme[1] -->"; } 
+	}
+	if ( $www ) { $wwwoutput .= "\n"; }
+	else { print"\n"; }
+	if ( $morfo[2] && $morfo[2] eq "__EOF__" ) {
+	    if ( $www ) { "  </utterance>\n </speaker>\n</suopuhe>\n"; }
+	    else { print "  </utterance>\n </speaker>\n</suopuhe>\n"; }
+	}
+    }
+    else { print STDERR "Tuntematon OUTPUT: $output"; die(); }
+}
+
+
+sub TWOL_disambiguate_finnish1 {
+  my $line = $_[0];
+  
+  $line =~ s/\"maa_ilma/\"maailma/g;
+  $line =~ s/\"hevos_voima\"/\"hevosvoima\"/g;
+  $line =~ s/\"vuoro_kausi\"/\"vuorokausi\"/g;
+  $line =~ s/\(\"([a-zåäö]+_)*?vuo\" N ABE SG.*?\)//; # väärä "vuotta"-tulkinta pois
+  $line =~ s/\(\"([a-zàåäö]+_)*?vuo\" N[ A-Z0-9]+2SG\)//g; # väärä vuosi pois
+  $line =~ s/\(\"([a-zàåäö]+_)*?vuode\" N GEN SG\)//; # ei vuode
+  $line =~ s/\(\"volta\" PROP N INS PL\)//; # voltin
+  $line =~ s/\(\"noki\" N INS PL\)//; #noin
+  $line =~ s/\(\"jälkeen\" N ILL PL\)//; # jälkeen
+  $line =~ s/\(\"vuoksi\" N [^\)]*\)//g;
+  $line =~ s/\(\"vuo\" N TRA SG\)//; # vuo-vuoksi
+  
+  #("mark"  PROP N NOM SG kAAn)
+  $line =~ s/\(\"mark\" PROP N NOM SG kAAn\)//;
+
+  # juuria-verbi pois
+  if ( $line =~ /<"juuri">/ ) { $line =~ s/\(\"juuria\"[^\)]*\)//g;}
+
+  # väärä "maahan"-tulkinta pois
+  if ( $line =~ / ILL SG/ && $line =~ /NOM SG hAn/ ) {
+    $line =~ s/\(\"[a-zåäö_]+\" [0-9A-Z ]+hAn\)//; 
+  }
+  $line =~ s/\(\"parka\" A POS ELA SG\)//g; # parka-parasta
+  $line =~ s/\(\"ha\" INTJ\)//g;
+  if ( $line =~ /^\(\"<vajaa/ ) { # poistetaan "vajaa"-alkuisilta sanoilta
+      # vaja-merkitykset
+      $line =~ s/\(\"vaja\" [A-Z0-9 ]+\)//g;
+  }  
+  $line =~ s/\(\"se\" ABBR NOM SG\)//;
+#  if ( $ =~ s/<n:o>/<numero>/ ) {
+#    $s_word .= "MYrule=disam¤original=n:0";
+#  }
+  
+  # twol ei laita yhdyssanarajaa PROPRIEN väliin (vrt. helsinginkatu)
+  $line =~ s/\" ([A-Z0-9 ]+) PROP/\" $1 = PROP/g;
+  # DISAMB... nappaa vahingossa pintamuodonkin...
+  # joten pintamuoto tulostetaan ja sitten nysvätään...
+  return $line;
+}
+sub TWOL_disambiguate_finnish2 {
+  my $line = $_[0];
+  my $pinta = my $origo = $_[1];
+  # print STDERR "IN: $pinta $line\n";
+  if ( $line =~ /\)\(/ && # moniselitteinen
+       ( $line =~ /\(\"[^\_\"]*\_[^\"]*\"/ &&
+	 $line =~ /\(\"[^\_\"]*\"/ )) {
+    # print STDERR "#$line\n"; die();
+    $line =~ s/\(\"[^\"]*\_[^\"]*\"[^\)]+\)//g;
+  }
+  
+  if ( $line =~ /\)\(/ &&
+       ( $line =~ /\"[^\_\"]*\_[^\_\"]*\_[^\_\"]*\"/ &&
+	 $line =~ /\"[^\_\"]*\_[^\_\"]*\"/ )) {
+    #print STDERR $line; die();
+    $line =~ s/\(\"[^_\"]*_[^_\"]*_[^\"]*\"[^\)]+\)//g;
+  }
+
+  # kliitit pois jos kliitittömiä tulkintoja
+  if ( $line =~ /\" [^\)]+[a-z]/ && # kliitti
+       $line =~ /\" [^a-z\)]+\)/ ) { #kliititön
+      $line =~ s/\(\"[^\"]+\" [^\)]+[a-z][^\)]*\)//g;
+  }
+
+  # pienellä alkavat PROP-tulkinnat pois (paitsi -lAinen
+  $line =~ s/PROP N/PROP¤ N/g;
+  if ( $pinta =~ /\"<[a-zåäö]/ &&
+       $line =~ /\([^¤]+\)/ &&
+       $line =~ /PROP¤ N/){ # 1: jos alkaa pienellä
+    $line =~ s/\([^\)]*PROP¤ N[^\)]*\)//g;
+  }
+  $line =~ s/PROP¤/PROP/g;
+
+  # isolla alkavat (=sananalkuiset)
+  # negatiiviverbi-tulkinnat pois
+  $line =~ s/ NEG([ \)])/ NEG¤$1/g;
+  if ( $pinta =~ /<[A-ZÄÖ][a-yäö]/ &&
+       $line =~ / NEG¤/ &&
+       $line =~ /\([^¤\)]+\)/ ) {
+      $line =~ s/\([^\)]*¤[^\)]*\)//g;
+  }
+  $line =~ s/ NEG¤/ NEG/g;
+  # SG3 pois alusta
+  $line =~ s/ (V (IMPV|PAST) ACT SG3)/ $1¤/g;
+  if ( $pinta =~ /<[A-ZÅÄÖ][a-zåäö]/ &&
+       $line =~ / (V (IMPV|PAST) ACT SG3)¤/ &&
+       $line =~ /\([^¤\)]+\)/ ) {
+      $line =~ s/\([^\)]*¤[^\)]*\)//g;
+  }
+  $line =~ s/SG3¤/SG3/g;
+
+  # DERIVAATAT pois jos muita tulkintoja (puuttellinen)
+  while ( $line =~ / D[ANV]\-/ &&
+	  $line =~ /\)\(/ &&
+	  $line =~ /\([^\-]+\)/ ) {
+    $line =~ s/\([^\)]* D[ANV]\-[^\)]*\)//;
+  }
+
+  # INStruktiivit ja ABBR pois jos muita tulkintoja... (puuttellinen)  
+  $line =~ s/ (ABBR|INS|INTJ)([\) ])/ $1¤$2/g;
+  if ( $line =~ /¤[ \)]/ && # on-tulkinta
+       $line =~ /\([^¤]+\)/ ) { # ei-tulkinta
+      $line =~ s/\([^\)]+\ (ABBR|INS)¤[^\)]*\)//; # on-tulkinnat pois
+  }
+  $line =~ s/ (ABBR|INS|INTJ)¤/ $1/g;
+
+  # ("<Tapahtumapaikka>"    ("tapahtua-paikka"  DV-MA NOM SG = N NOM SG)("tapahtuma-paikka"  N NOM SG = N NOM SG
+  while ( $line =~ /\)\(/ &&
+	  $line =~ s/\([^\)]+ DV\-MA [^\)]+ = [^\)]+\)// ) {}
+
+  # if ( $origo ne $line && $line =~ /\)\(/ ) { print STDERR "OUT: $pinta $line\n"; }
+
+  return $line;
+}
+
+
+
+
+###
+#
+# TWOL_perusmuodot
+#
+# hakee twollin kaikki mahdolliset perusmuodot
+
+sub TWOL_perusmuodot {
+  if ( $debug ) { print STDERR "TWOL_perusmuodot(\"$_[0]\"): "; }
+  my $twol = $_[0];
+  #print "TWOL: $twol :TWOL\n";
+  my $perusmuodot = ""; 
+  my $apu;
+  if ( $twol =~ s/^\S*\s+// ) { # perusmuoto(ja) löytyi
+      # print STDERR "$twol"; die;
+      while ( $twol =~ s/\(\"// ) {
+	  #print "LOOP: $twol ** $perusmuodot\n";
+	  $apu = $twol;
+	  $apu =~ s/\".*$//;
+	  if ( $perusmuodot !~ /^$apu$/m ) {
+	      $perusmuodot .= $apu;
+	  }
+	  if ( $twol =~ s/[^\"]+\"[^\(]*// ) {
+	      $perusmuodot .= "\n";
+	  }
+      }
+      $perusmuodot =~ s/\s+$//s;
+      #print STDERR "END: $perusmuodot\n";
+      if ( $debug ) { print STDERR "$perusmuodot\n"; }
+      return $perusmuodot;
+  }
+  else {
+      if ( $debug ) { print STDERR "NONE!\n"; }
+      return "";
+  }
+}
+
+###
+#
+#
+sub TWOL_restore_cases {
+  my $input1 = $_[0];
+  my $input2 = $_[1];
+  my $output1 = $_[2];
+  if ( $verbose ) {
+    print STDERR "Fintwol Postprocessor: restoring cases and minor disambiguation module.\n"; 
+  }
+  my $i = 0;
+  my @tulokset;
+  open(INPUT1, "$HOME/tmp/$input1");
+  open(INPUT2, "$HOME/tmp/$input2");
+  open(OUTPUT1, ">$HOME/tmp/$output1");
+  while(<INPUT1>) {
+     chop();
+     s/\s+/ /g;  
+     s/\) \(/\)\(/g;
+     if ( $_ eq "" ) { next; }
+     if ( $language eq "fin" ) {
+       $_ = TWOL_disambiguate_finnish1($_);
+     }
+     my $korvike = <INPUT2>;
+     $korvike =~ s/\n//; 
+#     print "$_$korvike";
+     s/^\(\"<.*(>\".*)$/\(\"<$korvike$1/; # ) { die; }
+     s/ *$//;
+     my $pinta = $_;
+     $pinta =~ s/ .*$//;
+     print OUTPUT1 "$pinta ";
+     s/^[^ ]+($| )//;
+     if ( $language eq "fin" ) {
+       $_ = TWOL_disambiguate_finnish2($_, $pinta);
+     }
+     print OUTPUT1 $_, "\n";
+  }
+  close(OUTPUT1);
+  close(INPUT2);
+  close(INPUT1);
+}
+###
+# 
+#  Returns just the token of an (un-)analyzed string
+sub TWOL_riisu {
+    # why not: $_[0] =~ /^.*?<(.*?)>\".*/; return $1;
+    # i'm not going to chanhe this, since i'm not able to test this
+  my $x = $_[0];
+  $x =~ s/^.*?<//;
+  $x =~ s/>\".*//;
+  return $x;
+}
+
+
+
+
+sub usage { 
+  print "Ohjesivu puuttuu!\n";
+  exit();
+}
+
+# returns true if the token matches CATEGORY
+sub voiko_laventaa {
+  if ( $debug ) { print STDERR "$debug_depth voiko_laventaa($_[0])\n"; }
+
+  my $lavennettava = my $parametrit = $_[0];
+  $lavennettava =~ s/\(.*$//;
+
+  $parametrit =~ s/\s//g; # yhteensopimaton fdg:n multiword-tokenien kaa?
+
+  if ( $parametrit =~ /^[A-Z\-]+$/ ) { $parametrit = ""; }
+  else {
+      $parametrit =~ s/^[^\(]*\(//;
+      $parametrit =~ s/\)$//;
+  }
+  if ( $lavennettava eq "ABBR" ) {
+    # lyhennelista
+    #if ( lyhenne2($pintamuoto[15+$etaisyys]) ne $pintamuoto[15+$etaisyys] ) {
+    #if ( mittalyhenne($pintamuoto[15+$etaisyys]) ne $pintamuoto[15+$etaisyys] ) {
+    #  return 1;
+    #}
+    # yksi merkki
+    if ( $pintamuoto[15+$etaisyys] =~ /^[A-ZÅÄÖa-zåäö]\.?$/ ||
+	 $pintamuoto[15+$etaisyys] =~ /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]+$/ || # ROOMALAISET LUVUT ongelmallisia
+	 $pintamuoto[15+$etaisyys] =~ /^[A-ZÅÄÖa-zåäö]+\.$/ ) {
+      return 1;
+    }
+    # pelkkiä isoja, seassa myös numeroita
+    if ( $pintamuoto[15+$etaisyys] =~ /^[A-ZÅÄÖ\-0-9]+$/ && # ) {
+	 $pintamuoto[15+$etaisyys] =~ /[A-ZÅÄÖ]/ &&
+	 $pintamuoto[15+$etaisyys] =~ /[0-9]/ ) {
+	return 1;
+    }
+
+    # ISOLLA kirjoituttu sana pienen vieressä
+    if ( $pintamuoto[15+$etaisyys] =~ /^[A-ZÅÄÖ]+$/ &&
+	 ( $pintamuoto[14+$etaisyys] =~ /^[A-ZÀÁÂÃÄÅÆÇĞÈÉÊËÌÍÎÏÒÓÔÕÖØÙÚÛÜİŞ]?[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ ||
+	   $pintamuoto[16+$etaisyys] =~ /^[a-zàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]+$/ )) {
+	return 1;
+    }
+    if ( $pintamuoto[15+$etaisyys] =~ /^[A-ZÅÄÖa-zåäö0-9]+:[a-yäö]+$/ &&
+	 # tahtoo numeron
+	 $pintamuoto[15+$etaisyys] =~ /[A-ZÅÄÖa-zåäö].*?:/ ) {
+      return onko_paate($pintamuoto[15+$etaisyys]);
+    }
+    return 0;
+  }
+  
+  # AGREE-ABBR: onko "ts.", "em." "ns." ...
+  if ( $lavennettava eq "AGREE-ABBR" ) {
+      return ( $agree_abbr{$pintamuoto[15+$etaisyys]} );
+  }
+
+  # COUNT-ABBR
+  if ( $lavennettava eq "COUNT-ABBR" ) {
+    return ( mittalyhenne($pintamuoto[15+$etaisyys]) ne $pintamuoto[15+$etaisyys] );
+  }
+
+  # DD, DDMM, DDMMYY
+  if ( $lavennettava eq "DD" ) { return onko_DD($pintamuoto[15+$etaisyys]); }
+  if ( $lavennettava eq "DDMM" ) {
+    return onko_DDMM($pintamuoto[15+$etaisyys]);
+  }
+  if ( $lavennettava eq "DDMMYY" ) {
+    return onko_DDMMYY($pintamuoto[15+$etaisyys]);
+  }
+
+  # DIGIT
+  if ( $lavennettava eq "DIGIT" ) {
+    if ( $pintamuoto[15+$etaisyys] =~ /^\d+$/ ) { return 1; }
+    if ( $pintamuoto[15+$etaisyys] =~ /^\d+:[a-zäö]+$/ ) { 
+      return onko_paate($pintamuoto[15+$etaisyys]);
+    }
+    return 0;
+  }
+
+  # EMAIL
+  if ( $lavennettava eq "EMAIL" ) {
+      return ( onko_email($pintamuoto[15+$etaisyys]));
+  }
+
+  # INT
+  if ( $lavennettava eq "INT" ) {
+    return onko_kokonaisluku($pintamuoto[15+$etaisyys]);
+  }
+
+  # LSEQ
+  if ( $lavennettava eq "LSEQ" ) {
+#      if ( $pintamuoto[15+$etaisyys] =~ /^[A-Z0-9]*[A-Z][A-Z0-9]*$/ ) { return 1; }
+#      if ( $pintamuoto[15+$etaisyys] =~ /^([bcdfghjklmnpqrstvwxzşßçğ]+|[aeiouyàáâãäöæçèéêëìíîïğòóôõöøùúûüışÿß]*([auo][yäö]|[yäö][aou])[aeiouyàáâãäöæèéêëìíîïòóôõöøùúûüıÿ]*)$/i ) {
+      return 1;
+#      }
+#      if ( $pintamuoto[15+$etaisyys] =~ /^([A-Z0-9]*[A-Z][A-Z0-9]*|[aeiouyàáâãäöæçèéêëìíîïğòóôõöøùúûüıÿ]+|[bcdfghjklmnpqrstvwxz]+):[a-zäö]+$/i ) { 
+#	  return onko_paate($pintamuoto[15+$etaisyys]);
+#      }
+#    return 0;
+  }  
+  # LTS
+  if ( $lavennettava eq "LTS") {
+      my $tmp;
+      # stuck in LIMBO, use the intermediate stage instead of the original
+      # surface form
+      if ( $komme[15+$etaisyys] && 
+	   $korvattu[15+$etaisyys] &&
+	   $komme[15+$etaisyys] =~ /LIMBO/ ) {
+	  $tmp = $korvattu[15+$etaisyys];
+      }
+      else { $tmp = $pintamuoto[15+$etaisyys]; }
+
+      if ( !onko_sana($tmp) ) { return 0; }
+
+      $parametrit =~ s/^\"//;
+      $parametrit =~ s/\"\)TO.*$//;
+      if ( $komme[15+$etaisyys] && 
+	   $korvattu[15+$etaisyys] &&
+	   $komme[15+$etaisyys] =~ /LIMBO/ ) {
+	  if ( $korvattu[15+$etaisyys] =~ /$parametrit/ ) { return 1; }
+	  return 0;
+      } 
+      if ( $pintamuoto[15+$etaisyys] =~ /$parametrit/ ) { return 1; }
+      return 0;
+  }  
+  # NUM 
+  if ( $lavennettava eq "NUM" ) {
+    return onko_numero($pintamuoto[15+$etaisyys]);
+  }
+  # NUM-SUFFIX1
+  if ( $language eq "fin" && # LANGUAGE SPECIFICS
+       $lavennettava eq "NUM-SUFFIX1" ) {
+    if ( $etaisyys == 0 ) { # ei rekursiivinen (tai oikeasti kludgetetaan)
+      if ( $pintamuoto[15+$etaisyys] =~ /^\d+(\,\d+)?\-[a-yäö_]+$/ ||
+	   ( $pintamuoto[15+$etaisyys] =~ /^\d+(,\d+)?$/ &&
+	     $pintamuoto[16+$etaisyys] eq "-" &&
+	     $pintamuoto[17+$etaisyys] =~ /^\d+(\,\d+)?\-[a-yäö_]+$/ )) {
+	return 1;
+      }
+      return 0;
+    }
+    # rekursiivinen voi olla ilman merkkijonoa: 10- ja 20-vuotiaat
+    elsif ( $pintamuoto[15+$etaisyys] =~ /^\d+(\,\d+)?\-[a-yäö_]*$/ ) {
+      return 1;
+    }
+    return 0;
+  }
+  # ORD
+  if ( $lavennettava eq "ORD" ) {
+    return onko_jarjestysluku($pintamuoto[15+$etaisyys]);
+  }
+  # PARTIAL-REPLACEMENT
+  if ( $lavennettava eq "PARTIAL-REPLACEMENT") {
+    $parametrit =~ s/^\"//;
+    $parametrit =~ s/\"\)TO.*$//;
+    if ( $komme[15+$etaisyys] && $korvattu[15+$etaisyys] &&
+	 $komme[15+$etaisyys] =~ /LIMBO/ ) {
+      if ( $korvattu[15+$etaisyys] =~ /$parametrit/ ) { return 1; }
+      return 0;
+    } 
+    if ( $pintamuoto[15+$etaisyys] =~ /$parametrit/ ) { return 1; }
+    return 0;
+  }  
+
+
+  # REPLACEMENT has already been checked...
+  if ( $lavennettava eq "REPLACEMENT") { return 1; }
+  # ROMAN
+  if ( $lavennettava eq "ROMAN" ) { 
+    if ( roomalainen($pintamuoto[15+$etaisyys]) ) { 
+      $perusluku = 0; # change cardinal as the default numeric type, it's magic
+      return 1; 
+    }
+    return 0;
+  }
+  # SAPI4
+  if ( $lavennettava eq "SAPI4-TAG" ) { return ( $output eq "sapi4" ); }
+  
+  # TIME
+  if ( $lavennettava eq "TIME" ) {
+    return onko_kellonaika($pintamuoto[15+$etaisyys]);
+  }
+  # URL
+  if ( $lavennettava eq "URL" ) { return onko_URL($pintamuoto[15+$etaisyys]); }
+  # XML-argumentti
+  if ( $lavennettava eq "XML-ARGUMENT" ) { return ($output eq "xml" ); }
+  # XML-argumentti
+  if ( $lavennettava eq "XML-TAG" ) { return ($output eq "xml" ); }
+  # YEAR
+  if ($lavennettava eq "YEAR") {return onko_vuosi($pintamuoto[15+$etaisyys]);}
+  
+  print STDERR
+      "Lavennuskategoriaa $lavennettava ($parametrit) ei ole määritelty!\n";
+  die();
+}
+
+
+sub www_demo { 
+    # tulosta header
+    print "Content-type: text/html\n";
+    print "Pragma: no-cache\n\n";
+    print "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n";
+    print "<HTML>\n";
+    print " <HEAD>\n";
+    print "  <meta http-equiv=\"Content-Type\" content=\"text/html\; charset=iso-8859-15\">\n";
+    print "  <TITLE>\"Suopuheen\" puhesyntetisaattorin www-demo</TITLE>\n";
+    print "  <LINK href=\"http://www.ling.helsinki.fi/suopuhe/style.css\" type=\"text/css\" rel=\"stylesheet\">\n";
+    print "  <meta name=\"author\" content=\"Nicholas Volk\">\n";
+    print " </HEAD>\n";
+    print " <BODY>\n";
+#    print " <p><b>Referer:</b> <tt>", referer(), "</tt></p>\n";
+    print " <center><h3>Lavennettu teksti ($tagger):</h3></center>\n";
+    finnish();
+    $wwwoutput =~ s/<utterance>\s*<\/utterance>//gs;
+    $wwwoutput =~ s/\n *\n/\n/gs;
+    $wwwoutput =~ s/</\&lt;/gs;
+    $wwwoutput =~ s/>/\&gt;/gs;
+    
+    
+    #unless ( $wwwoutput =~ s/(\&lt;\/utterance\&gt;).*(&lt;\/speaker\&gt;)/$1\n $2/s ) {
+#	$wwwoutput .= "  &lt;/utterance&gt;\n &lt;/speaker&gt;\n&lt;/suopuhe&gt;\n";
+#    }
+    #$wwwoutput =~ s/\&lt;\/utterance\&gt;\s*.*\&lt;\/utterance\&gt;/\&lt;\/utterance\&gt;/s;
+    print "<pre>$wwwoutput</pre>\n";
+    $wwwoutput =~ s/\&lt;/</gs;
+    $wwwoutput =~ s/\&gt;/>/gs;
+    save_output();
+    
+    print "<center><h3>\n";
+    print " <a href=\"/~nvolk/cgi-bin/suopuhe.wav\">\n";
+    print "  <img src=\"http://www.ling.helsinki.fi/kuvia/sound2.gif\" alt=\"wav-file\" border=\"0\">&nbsp;Syntetisoi teksti ja kuuntele WAV-tiedosto&nbsp;<img src=\"http://www.ling.helsinki.fi/kuvia/sound2.gif\" alt=\"wav-file\" border=\"0\"></a></center></h3>\n";
+    print "  <hr>\n";
+    print "  <address>\n";
+    print "   <a href=\"mailto:nvolk\@ling.helsinki.fi\">Nicholas Volk</a><br>\n";
+    print "   Helsingin yliopisto<br>\n";
+    print "   Yleisen kielitieteen laitos<br>";
+    print "   29.8.2002\n";
+    print "  </address>\n\n";
+    print " </body>\n";
+    print "</html>\n";
+    exit(0);
+    die; 
+}
+
+
+# add letter '-' to compound boundaries, this might overgenerate...
+sub yhdyssanarajat {
+    if ( $debug ) { print STDERR "yhdyssanarajat():\n"; }
+    # return; # don't use when evaluating, differentiates the outputs
+    my $pinta = $pintamuoto[30];
+    my $syva = $perusmuoto[30];
+    my $uusi = "";
+    my ( $char1, $char2);
+    while ( $pinta ne "" ) {
+	$pinta =~ s/^.//;
+	$char1 = $&;
+	$syva =~ s/^.//;
+	$char2 = $&;
+	# if compound boundary consume an extra letter 
+	if ( $char2 eq "_" ) {
+	    $syva =~ s/.//;
+	    $uusi .= "-";
+	}
+	$uusi .= $char1;	
+    }
+    $uusi =~ s/\- / /g; 
+    # sillä pintamuoto "Näkövammaisten keskusliitto" 
+    #     ja syvämuoto "Näkövammaisten_ keskusliitto" 
+    #print "*$uusi*\n";
+    $pintamuoto[30] = $uusi;
+    return;
+}
+
+sub yksitellen {
+  if ( $debug ) { 
+      $debug_depth .= " ";
+      print STDERR "$debug_depth-yksitellen($_[0])\n"; 
+  }
+
+  my $merkkijono = $_[0];
+  my $isous = $_[1];
+  my $numerot_yhdessa = $_[2];
+
+  my $viimeisen_muoto = $muoto;
+  my $viimeisen_luku = $luku;
+  my $viimeisen_perusluku = $perusluku;
+  my $viimeisen_kliitti = $clitic; # muuten ME:nsä => ämmä_eensä 
+  $clitic = "";
+  my $korvaava_merkkijono = "";
+  
+  $muoto = 1; $luku = 0; $perusluku = 1;
+  while ( $merkkijono ne "" ) {
+    my $keula = $merkkijono;
+    if ( $merkkijono =~ /^[1-9]/ ) {
+      # poista JOKO monta
+      if ( $numerot_yhdessa ) { 
+	$merkkijono =~ s/^\d+//; 
+	$keula =~ s/^(\d+).*$/$1/;
+      }
+      # tai YKSI
+      else {
+	$merkkijono =~ s/^\d//; 
+	$keula =~ s/^(\d).*$/$1/;  
+      }
+      # jos viimeinen, niin kongruoi ja laitetaan kliitti perään...
+      if ( $merkkijono eq "" ) { 
+	$muoto = $viimeisen_muoto; 
+	$perusluku = $viimeisen_perusluku;
+	$luku = $viimeisen_luku;
+	$clitic = $viimeisen_kliitti; 
+      } 
+      $korvaava_merkkijono .= " " . taivuta_numero($keula);
+    }
+    # eka merkki kirjaimiksi
+    else { 
+      $merkkijono =~ s/^.//;
+      $keula =~ s/^(.).*$/$1/;
+      # jos viimeinen, niin kongruoi ja laitetaan kliitti perään...
+      if ( $merkkijono eq "" ) { 
+	$muoto = $viimeisen_muoto; 
+	$clitic = $viimeisen_kliitti;
+      } 
+      # mites S:kin (nyt "äskin", pitäskö olla "ässäkin", ainakin l:nsa...
+      $korvaava_merkkijono .= " " . avaa_merkki($keula, $isous) . $clitic;
+      # mm => ämM äm
+      if ( !$isous && 
+	   $keula =~ /^[flmnrs]$/i &&
+	   $merkkijono =~ /^[aeiouyäöflmnrs]/i ) {
+	  # print STDERR "venytetään $_[0]\n";
+	  $korvaava_merkkijono =~ s/(.)$/$1$1/;
+      }
+      
+   }
+  }
+  $korvaava_merkkijono =~ s/^_+//; 
+  $korvaava_merkkijono =~ s/[ _]+$//;
+  if ( $debug ) {
+      print STDERR "$debug_depth-returns $korvaava_merkkijono\n";
+      $debug_depth =~ s/ //;
+  }
+  return $korvaava_merkkijono;
+}
+
+
+
+# MAIN
+
+
+if ( $help ) {
+  usage();
+  exit;
+}
+
+save_input();
+
+# call WWWDEMO (which calls then finnish module=
+if ( $www && $language && $language eq "fin" ) {
+  www_demo();
+  exit();
+}
+
+# call FIN module and exit
+if ( !$language || $language eq "fin" ) {
+
+  finnish();
+  exit();
+}
+
+die("$0: unsupported language.\n");
+
+

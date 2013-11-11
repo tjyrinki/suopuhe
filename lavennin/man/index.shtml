@@ -1,0 +1,54 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML>
+ <HEAD>
+    <TITLE>Suomenkielisen tekstin lavennin</TITLE>
+    <META http-equiv="Content-Type" content="text/html">
+    <LINK rel="stylesheet" type="text/css" href="http://www.ling.helsinki.fi/suopuhe/style.css">
+    <META http-equiv="Content-Type" content="text/html">
+    <META name="author" content="Nicholas Volk">
+ </HEAD>
+ <BODY>     
+
+<h1>LAVENNIN</h1>
+
+<p>
+Lavennin-ohjelman avulla voidaan konvertoida tavallisessa
+kirjoitetussa tekstissä esiintyvät numerot, lyhenteet ja muut
+sellaisenaan luettavaksi kelpaamattomat merkkijonot luettavaan
+muotoon. Syntetisaattorin tehtäväksi jää grafeemi-foneemi-konversio,
+jossa kirjaimet muutetaan äänteiksi. Tosin lavenninta voidaan
+käyttää myös vierasperäisten sanojen nativisiointiin.
+</p>
+
+<p>
+Ohjelma toimii itsenäisenä kokonaisuutena muuttaen raakatekstiö
+raakatekstiksi. Lisäksi se osaa tuottaa Suopuhe-puhesyntetisaattorin
+ymmärtämää XML-tulostusta.
+</p>
+
+<p>
+Perl-ohjelmointikielellä julkaistu Lavennin julkaistaneen syksyllä 2003
+LGPL-lisenssin alla.
+Laventimen jatkokehitys on tämän jälkeen suuren yleisön varassa.
+</p>
+
+<p>
+Lavennin on tehty osan Suomenkielisen puheteknologian yhteishankeen
+Puhesynteesi-projektia (SuoPuhe TEKES 40285/00, 40406/01,
+40238/02, HY 460325).
+</p>
+
+
+<center><small>
+<p>
+<a class="valikko" href="http://www.ling.helsinki.fi/suopuhe/">
+	  Suopuhe-projekti</a>
+<a class="valikko" href="asennus.shtml">Asennus</a>
+<a class="valikko" href="kaytto.shtml">Käyttöohje</a>
+</p>
+</small></center>
+
+</head> 
+</html>
+
+

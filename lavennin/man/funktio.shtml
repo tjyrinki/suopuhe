@@ -1,0 +1,1049 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML>
+ <HEAD>
+    <TITLE>Laventimen funktioit ja globaalit muuttujat</TITLE>
+    <META http-equiv="Content-Type" content="text/html">
+    <LINK rel="stylesheet" type="text/css" href="http://www.ling.helsinki.fi/suopuhe/style.css">
+    <META http-equiv="Content-Type" content="text/html">
+    <META name="author" content="Nicholas Volk">
+ </HEAD>
+<body>
+<!-- OVERRIDE STYLESHEET: -->
+<style type="text/css">
+<!--
+H2 { 
+ font-family: Courier, monospace; 
+ color: black;
+} 
+-->
+</style>
+
+<p><small>
+<a href="asennus.shtml">Laventimen asennusohje</a><br>
+<a href="kaytto.shtml">Laventimen käyttöohje</a><br>
+<a href="saannot.shtml">Laventimen sääntötiedostot</a>
+</small></p>
+
+
+
+
+
+<h1>Funktiokuvaukset</h1>
+
+
+<center><small><p>
+<a href="#alusta_kieli"> alusta_kieli</a> &nbsp; 
+<a href="#aseta_ISO639_fin"> aseta_ISO639_fin</a> &nbsp; 
+<a href="#aukikirjoita"> aukikirjoita</a> &nbsp; 
+<a href="#avaa"> avaa</a> &nbsp; 
+<a href="#avaa_merkki"> avaa_merkki</a> &nbsp; 
+<a href="#desitaivu"> desitaivu</a> &nbsp; 
+<a href="#FDG_postprocess"> FDG_postprocess</a> &nbsp; 
+<a href="#fin_fdg_text"> fin_fdg_text</a> &nbsp; 
+<a href="#fin_plain_text"> fin_plain_text</a> &nbsp; 
+<a href="#fin_twol_text"> fin_twol_text</a> &nbsp; 
+<a href="#finnish"> finnish</a> &nbsp; 
+<a href="#formo"> formo</a> &nbsp; 
+<a href="#get_home_directory"> get_home_directory</a> &nbsp; 
+<a href="#hae_POS"> hae_POS</a> &nbsp; 
+<a href="#kaanteissijaluku"> kaanteissijaluku</a> &nbsp; 
+<a href="#kaanteissijamuoto"> kaanteissijamuoto</a> &nbsp; 
+<a href="#katenoi_sija"> katenoi_sija</a> &nbsp; 
+<a href="#kommentit_pois"> kommentit_pois</a> &nbsp; 
+<a href="#korjaa_typot"> korjaa_typot</a> &nbsp; 
+<a href="#kuukausi"> kuukausi</a> &nbsp; 
+<a href="#lavenna"> lavenna</a> &nbsp; 
+<a href="#lavenna_email"> lavenna_email</a> &nbsp; 
+<a href="#lavenna_URL"> lavenna_URL</a> &nbsp; 
+<a href="#loppukahdennussana"> loppukahdennussana</a> &nbsp; 
+<a href="#lue_agree_abbr"> lue_agree_abbr</a> &nbsp; 
+<a href="#lue_lavennussaannot"> lue_lavennussaannot</a> &nbsp; 
+<a href="#lue_merkit"> lue_merkit</a> &nbsp; 
+<a href="#lue_numerot"> lue_numerot</a> &nbsp; 
+<a href="#lue_paasanalista"> lue_paasanalista</a> &nbsp; 
+<a href="#lueRC"> lueRC</a> &nbsp; 
+<a href="#lue_sana"> lue_sana</a> &nbsp; 
+<a href="#lue_yleissanasto"> lue_yleissanasto</a> &nbsp; 
+<a href="#luku"> luku</a> &nbsp; 
+<a href="#main_loop"> main_loop</a> &nbsp; 
+<a href="#merkkimuunnokset"> merkkimuunnokset</a> &nbsp; 
+<a href="#mika_muoto"> mika_muoto</a> &nbsp;
+<a href="#mittalyhenne">mittalyhenne</a> &nbsp; 
+<a href="#montako_lukua"> montako_lukua</a> &nbsp; 
+<a href="#montako_sijamuotoa"> montako_sijamuotoa</a> &nbsp; 
+<a href="#num_suffix1"> num_suffix1</a> &nbsp; 
+<a href="#onko_DD"> onko_DD</a> &nbsp; 
+<a href="#onko_DDMM"> onko_DDMM</a> &nbsp; 
+<a href="#onko_DDMMYY"> onko_DDMMYY</a> &nbsp; 
+<a href="#onko_email"> onko_email</a> &nbsp; 
+<a href="#onko_jarjestysluku"> onko_jarjestysluku</a> &nbsp; 
+<a href="#onko_kellonaika"> onko_kellonaika</a> &nbsp; 
+<a href="#onko_kokonaisluku"> onko_kokonaisluku</a> &nbsp; 
+<a href="#onko_liukuluku"> onko_liukuluku</a> &nbsp; 
+<a href="#onko_numero"> onko_numero</a> &nbsp; 
+<a href="#onko_paate"> onko_paate</a> &nbsp; 
+<a href="#onko_sana"> onko_sana</a> &nbsp;
+<a href="#onko_URL"> onko_URL</a> &nbsp; 
+<a href="#onko_tavu"> onko_tavu</a> &nbsp; 
+<a href="#onko_vuosi"> onko_vuosi</a> &nbsp; 
+<a href="#onko_yleissanastossa"> onko_yleissanastossa</a> &nbsp; 
+<a href="#pakkolavenna"> pakkolavenna</a> &nbsp;
+<a href="#pintamuotoon"> pintamuotoon</a> &nbsp; 
+<a href="#plain_base"> plain_base</a> &nbsp; 
+<a href="#plain_text_case"> plain_text_case</a> &nbsp; 
+<a href="#plain_text_POS"> plain_text_POS</a> &nbsp; 
+<a href="#preprocess_finnish1"> preprocess_finnish1</a> &nbsp; 
+<a href="#preprocess_finnish2"> preprocess_finnish2</a> &nbsp; 
+<a href="#reformo"> reformo</a> &nbsp; 
+<a href="#roomalainen"> roomalainen</a> &nbsp; 
+<a href="#save_input"> save_input</a> &nbsp; 
+<a href="#save_output"> save_output</a> &nbsp; 
+<a href="#sijamuoto"> sijamuoto</a> &nbsp; 
+<a href="#sopiiko_kontekstiin"> sopiiko_kontekstiin</a> &nbsp; 
+<a href="#sopiiko_kontekstiin2"> sopiiko_kontekstiin2</a> &nbsp; 
+<a href="#syvamuoto_pintamuotoon"> syvamuoto_pintamuotoon</a> &nbsp; 
+<a href="#taivuta_numero"> taivuta_numero</a> &nbsp; 
+<a href="#taivuta_numero2"> taivuta_numero2</a> &nbsp; 
+<a href="#tarkkuuslavenna"> tarkkuuslavenna</a> &nbsp; 
+<a href="#tarkkuuslavenna2"> tarkkuuslavenna2</a> &nbsp; 
+<a href="#tavulavenna"> tavulavenna</a> &nbsp; 
+<a href="#tavuta"> tavuta</a> &nbsp; 
+<a href="#token2snt"> token2snt</a> &nbsp; 
+<a href="#tulosta"> tulosta</a> &nbsp; 
+<a href="#TWOL_disambiguate_finnish1"> TWOL_disambiguate_finnish1</a> &nbsp; 
+<a href="#TWOL_disambiguate_finnish2"> TWOL_disambiguate_finnish2</a> &nbsp; 
+<a href="#TWOL_perusmuodot"> TWOL_perusmuodot</a> &nbsp; 
+<a href="#TWOL_restore_cases"> TWOL_restore_cases</a> &nbsp; 
+<a href="#TWOL_riisu"> TWOL_riisu</a> &nbsp; 
+<a href="#usage"> usage</a> &nbsp; 
+<a href="#voiko_laventaa"> voiko_laventaa</a> &nbsp; 
+<a href="#www_demo"> www_demo</a> &nbsp; 
+<a href="#yhdyssanarajat"> yhdyssanarajat</a> &nbsp; 
+<a href="#yksitellen"> yksitellen</a>
+</p></small></center>
+
+
+<p>
+Merkintä (SUOMI) tarkoittaa, ettei funktion kieliriippumattomuus ole
+kunnossa.
+</p>
+
+
+<a name="alusta_kieli"></a><h2>bool alusta_kieli(string language)</h2>
+<p>
+Funktio palauttaa arvon 1 (tosi), jos halutun kielen asetusten laitto
+onnistuu, muuten arvon 0 (epätosi). Parametrina saadun kielen nimen
+tulee ISO-639-2 -standardin mukainen kielen tunnus (suomi=fin).
+Funktio kutsuu tuettujen kielten (tällä hetkellä vain 
+<a href="#iso639-fin">fin</a>,
+aseta_ISO639_$language -funktiota, joka suorittaa itse 
+asetusten laiton halutulle kielelle.
+</p>
+
+<a name="aseta_iso639_fin"></a><h2>void aseta_ISO639_fin()</h2>
+<p>
+Asettaa suomen kielen oletustiedot. Palauttaa arvon 1 (tosi)
+kutsuneelle funtiolle (<tt><a
+href="#alusta_kieli">alusta_kieli()</a></tt>).
+</p>
+
+<a name="aukikirjoita"></a><h2>string aukikirjoita(int luku, int
+kertaluokka)</h2>
+<p>
+Funktio palauttaa parametrina <tt>$luku</tt> saamaansa 1-3-numeroista lukua
+vastaavan merkkijonon globaalien muuttujien antavassa luvussa,
+sijassa ja lukutyypissä. Parametri <tt>$kertaluokka</tt> kertoo
+miten luku 1 tulisi avata (ei minään tai yhtenä, vrt. 1 &lt;=&gt; "yksi" ja
+1000 &lt;=&gt; "tuhat").
+</p>
+
+
+<a name="avaa"></a><h2>string avaa(string saanto)</h2>
+<p>
+Avaa halutun sanan säännön vaatimalla tavalla (eli
+esim. kokonaislukuna tai päiväyksenä). Säännön parametrien
+avulla voidaan ohittaa oletusarvot, kuten oletussija.
+Näistä enemmän <a href="saannot.shtml#lavennus">lavennussäännöissä</a>.
+Palauttaa sanasta johdetun korvaavan merkkijonon. Jos sääntö on
+tuntematon,
+ohjelman ajo pysäytetään, sillä virheellisen säännön olisi pitänyt
+jäädä haaviin jo aikaisemmin. (SUOMI)
+</p>
+
+<a name="avaa_merkki"></a><h2>string avaa_merkki(char merkki, bool case_sensitive)</h2>
+<p>
+Muuttaa <tt>$merkki</tt>-parametrinsa vastaavaksi merkkijonoksi ja
+palauttaa sen (esim. d-kirjaimesta tulee "dee"). Jos muuttuja
+<tt>$case_sensitive</tt> on
+tosi, lisätään isojen kirjaimien eteen merkkijono "iso-". (SUOMI)
+Aakkosten a-zåäö ja numeroiden tiedot ohjelmalla on omasta takaa,
+muiden nimiä voidaan määrittää tiedostossa <tt><a
+href="saannot.shtml#merkki">data/$language_merkit.txt</a></tt>.
+Tuntemattomien
+merkkien kohdalla palauttaa merkkijonon "NIMEÄMÄTÖN MERKKI!".
+</p>
+
+<a name="desitaivu"></a><h2>string desitaivu(float desimaaliluku)</h2>
+<p>
+(SUOMI) Muuttaa parametrinaan saamansa merkkijonon <tt>$desimaaliluvun</tt>
+merkkijonoksi osin itsenäisesti, osin <a href="#taivuta_numero">
+taivuta_numero</a>-funktion avulla.
+</p>
+
+<a name="FDG_postprocess"></a><h2>void FDG_postprocess(string inputfile, string
+outputfile)</h2>
+<p>
+Modifies the Conexor analysis a little bit. For example the syntactic
+pointers are changed from absolute to relative.
+Tries to work for both
+2.0 and 3.7's text-mode at the same time, which is a bit scary, since
+the preprocessor has changed a bit... One could also add a bit of
+within-word processing here. 
+</p>
+
+<a name="fin_fdg_text"></a><h2>string fin_fdg_text()</h2>
+<p>
+Valmistelee suomenkielistä, <a href="http://www.conexoroy.com">Conexorin</a>
+FDG-jäsentimen avulla tapahtuvaa lavennusta.
+Palauttaa sen aputiedoston nimen, jonka avulla lopullinen lavennus tehdään. 
+</p>
+
+<a name="fin_plain_text"></a><h2>string fin_plain_text()</h2>
+<p>
+Valmistelee suomenkielistä, <a href="http://www.lingsoft.fi">Lingsoftin</a> TWOL-ohjelman avulla lavennusta.
+Palauttaa sen aputiedoston nimen, jonka avulla lopullinen lavennus tehdään. 
+</p>
+
+<a name="fin_twol_text"></a><h2>string fin_twol_text()</h2>
+<p>
+Valmistelee suomenkielistä lavennusta.
+Palauttaa sen aputiedoston nimen, jonka avulla lopullinen lavennus tehdään. 
+</p>
+
+<a name="finnish"></a><h2>void finnish()</h2>
+<p>
+Suomenkielisen lavennuksen hoitava funktio. Kutsuu taggerin vaatimaa
+valmistelevaa funktiota <tt>fin_$TAGGER_text</tt>, ja lähettää
+siltä saamansa (väli-)syötetiedoston varsinaisen lavennuksen tekevälle
+<a href="main_loop"><tt>main_loop</tt></a>-funktiolle.
+</p>
+
+<a name="formo"></a><h2>void formo()</h2>
+<p>
+Erityinen sanaston laajentamista varten tehty funktio. Funktiota
+kutsutaan, jos komentorivillä on annettu optio <tt>--mode=formo</tt>.
+Lukee kantasyötettä rivi kerrallaan. Rivillä annetaan sanan pinta- tai
+syvämuoto. Jos syötettä vastaava pintamuoto löytyy sanastosta,
+tulostetaan sen syvämuodon avulla taivutusparadigma. 
+Muuten syöte tulkitaan syvämuodoksi, josta
+sellaisenaan yritetään rakentaa taivutusparadigma.
+Tyhjä syöterivi aiheuttaa ohjelmasta poistumisen.
+</p>
+
+<a name="get_home_directory"></a><h2>get_home_directory()</h2>
+<p>
+Tekee muuttujan <tt>$0</tt> cwd-funktion avulla mitä voi,
+päätelläkseen ohjelman kotihakemiston, jotta sääntötiedostot
+voitaisiin lukea.
+</p>
+
+<a name="hae_POS"></a><h2>string hae_POS()</h2>
+<p>
+Poimii globaalin muuttujan <tt>$morfo[1]</tt> tulkinnasta sijamuodon
+XML-tulostusta varten. Jos tulkinta on monitulkintainen, niin
+sanaluokan
+valinta tapahtuu <em>yleensä</em> aakkosjärjestyksen perusteella (huh!).
+</p>
+
+<a name="kaanteissijaluku"></a><h2>int kaanteissijaluku(string case)</h2>
+<p>
+Suomi: Palauttaa joko luvun 0 (jos case on "SG") tai luvun 14
+(monikko, case on "PL"). Luku
+kertoo mistä kohtaa taulukkoa kannattaa valmiiksi rakennuttuja
+numeroita etsimään. 
+</p>
+
+<a name="kaanteissijamuoto"></a><h2>string kaanteissijamuoto(int case)</h2>
+<p>
+Muuttaa saamansa sijamuotoon viittavan numerotunnuksen merkkijonoksi.
+(Vrt. <tt><a href="#sijamuoto">sijamuoto()</a></tt>)
+</p>
+
+<a name="katenoi_sija"></a><h2>string katenoi_sija(string syvamuoto, int sija)</h2>
+<p>
+Lisää merkkijonoon <tt>$syvamuoto</tt> sijamuotoa <tt>$sija</tt>
+vastaavan syvämuotoinen pääte.
+</p>
+
+<a name="kommentit_pois"></a><h2>string kommentit_pois(string input)</h2>
+<p>
+Poistaa sääntörivistä <tt>$input</tt> kommentimerkinnät ja palauttaa 
+korjatun rivin.
+</p>
+
+<a name="korjaa_typot"></a><h2>string korjaa_typot(string sana)</h2>
+<p>
+Korjaa argumenttinsa <tt>$sana</tt> mahdollisesti sisältämiä
+kirjoitusvirheitä. Sana voi tässä olla useammasta sanasta koostuva
+yksikkö, josta on välilyönti unohtunut, esim. "eka,toka". 
+</p>
+
+<a name="kuukausi"></a><h2>string kuukausi(int monesko)</h2>
+<p>
+Palauttaa argumenttia <tt>$monesko</tt> vastaavan kuukauden nimen.
+</p>
+
+<a name="lavenna"></a><h2>void lavenna()</h2>
+<p>
+Laventaa tarkasteltavana olevan sanan (<tt>$pintamuoto[15]</tt>), jos
+lavennussääntö sen sallii. Käy läpi kunkin lavennussäännön vuorollaan.
+Jos sanatyypi vastaa säännössä määriteltyä ja täyttää kontekstiehdot,
+niin lavennetaan.
+Huolehtii myös rekursiosta tarpeen vaatiessa.
+</p>
+
+<a name="lavenna_email"></a><h2>string lavenna_email(string osoite)</h2>
+<p>
+Muuttaa sähköpostiosoitteen luettavaan muotoon <a
+href="#tarkkuuslavenna">tarkuuslavenna</a>-funktion avulla.
+Sähköpostiosoite on case-insensitive.
+</p>
+
+<a name="lavenna_URL"></a><h2>string lavenna_URL(string URL)</h2>
+<p>
+Muuttaa www-osoitteen luettavaan muotoon. Palvelimen nimi
+on (yrittää olla) case-insenstive.
+</p>
+
+<a name="loppukahdennussana"></a><h2>string loppukahdennussana(string sana)</h2>
+<p>
+Tutkii argumenttina saamaansa <tt>$sana</tt>-muuttujaa. Lähestymistapa riippuu
+käytetystä aputyökalusta. Palauttaa joko merkkijono "yes" tai "no" sen mukaan,
+laukaiseeko sana seuraavassa sanassa alkukahdennuksen eli ei.
+Käytetään vain (SUOPUHE-)XML-moodissa.
+</p>
+
+<a name="lue_agree_abbr"></a><h2>void lue_agree_abbr()</h2>
+<p>
+Lukee tiedoston <tt>data/$lang_agree_abbr</tt>. Tiedosto sisältää itse
+lyhenteen ja syvämuodon sanasta, jonka lyhenne se on.
+Syvämuodot talletetaan globaaliin assosiatiivitaulukkoon muodossa
+<tt>$agree_abbr{$lyhenne} = $syvamuoto</tt>.
+</p>
+
+<a name="lue_lavennussaannot"></a><h2>int lue_lavennussaannot()</h2>
+<p>
+Lukee lavennussäännöt tiedostosta <tt>data/$lang_lavennussaannot.txt</tt>,
+joiden avulla teksti lavennetaan.
+Sääntöjen tarkempi kuvaus <a href="saannot.shtml">sääntösivulla</a>.
+Funktio palauttaa luettujen sääntöjen määrään. Funktion yhtyeteen voisi
+lisätä sääntöjen oikeellisuuden atrkistuksen.
+</p>
+
+<a name="lue_merkit"></a><h2>void lue_merkit()</h2>
+<p>
+Funktio lukee tiedostosta <tt>data/$lang_merkit.txt</tt>
+merkkien merkkien nimet. Kirjaimet ja numerot osataan (ainakin suomessa)
+suomessa muualta kerättyjen tietojen avulla, joten niitä ei tarvitse
+kertoa tässä tiedostossa. Tiedoston kullakin rivilla on ensin itse merkki
+sitten tabulattori erottimena ja lopuksi merkin nimi. Merkit
+talletetaan globaaliin hash-taulukkoon:<br>
+<tt>$yksittainen_merkki{$merkki} = $merkin_nimi;</tt>
+
+</p>
+
+<a name="lue_numerot"></a><h2>void lue_numerot()</h2>
+<p>
+Lukee tiedostosta <tt>data/<em>language</em>_luvut.txt</tt>
+numeroissa käytettyjen ilmausten syvämuodot ja generoi kullekin
+tarvittavat pintamuodot, jotka puolestaan talletetaan
+globaaliin taulukkoon <tt>$numero[$rivi][$sija+$luku]</tt>.
+Taulukoon talletuksen avulla näitä usein tarvittavia yksiköitä ei tarvitse
+generoida kuin kerran. Numeron lavennuksesta taulukon avulla
+huolehtii puolestaan
+<a href="taivuta_numero">taivuta_numero</a>-funktio tai oikeammin sen
+<a href="taivuta_numero2">taivuta_numero2</a>-apufunktio.
+</p>
+
+<a name="lue_paasanalista"></a><h2> lue_paasanalista</h2>
+<p>
+Lukee pääsanalistan huonosti nimetystä 
+tiedostosta <tt>data/<em>language</em>_kongruoivat_sanat.txt</tt>
+joukon mittayksikkösanoja, sekä muita, tilastollisesti hyvin kongruenssia
+aiheuttavia sanoja ja tallettaa ne globaaliin hash-taulukkoon
+<tt>%kongruoiva_sana</tt>. Lisäksi jos ollaan suomenkielisessä
+plain-text -tilassa, generoidaan aikaisemmin <a href="#lue_yleissanasto">
+luetusta yleissanastosta</a> löytyvien syvämuotojen avulla sanoille
+niiden nominatiivi-, partitiivi-, genetiivi-, essiivi-, translartiivimuodot
+sekä kaikkien ulko- ja sisäpaikallisesijojen (pinta)muodot ja
+talletaan kukin muoto oman sijamuotonsa kolmen ensimmäisen kirjaimen
+mukaan nimettyyn globaaliin hash-taulukkoon (esim. <tt>$tra{"markkana"}</tt>.
+</p>
+
+<a name="lueRC"></a><h2>void lueRC()</h2>
+<p>
+Funktio lukee <tt>~/<em>käyttäjätunnus</em>/.nswrc</tt>-tiedostosta
+joukon käyttäjäkohtaisia asetuksia.
+Toimii vain Unixeissa (järjestelmissä, joiden hakemistorakenne alkaa
+juuresta '/'). Tiedoston rivit ovat muotoa:
+</p>
+<blockquote>
+<tt>MUUTTUJA=ARVO</tt>
+</blockquote>
+<p>
+Useimmat muuttujat vastaavat jotain komentorivioptiota.
+Komentorivioption painoarvo on suurempi kuin <tt>.nswrc</tt>-tiedoston,
+eli konfliktitilanteissa käytetään komentoriviarvoa.
+Laillisia muuttujia ovat:
+</p>
+
+<dl>
+<dt>DIALECT</dt>
+<dd>
+ Hupikevennys. Tällä muuttujalla voi valita tulosteessa käytetyn murteen. 
+ Ei vielä tuettu. Tarkoitus olisi lisätä ainakin seuraavat murteet suomelle:
+<tt>turku</tt> ja <tt> savo</tt>.
+ Vastaan <tt><a href="kaytto.shtml#dialect">--dialect=<em>string</em></a></tt> -optiota
+</dd>
+
+<dt>FORCE</dt>
+<dd>
+ Pakkolavennus. Arvot "on" ja "off". Vastaa <tt><a href="kaytto.shtml#force">--force</a></tt>-optiota.
+</dd>
+
+<dt>LANGUAGE</dt>
+<dd>
+  ISO-<em>nnn</em>:n mukainen kolmikirjaiminen kielen nimi.
+  Vastaa <tt><a href="kaytto.shtml#language">--language=<em>string</em></a></tt>.
+</dd>
+
+<dt>MIN_YEAR ja MAX_YEAR</dt>
+<dd>
+  Vuosilukusäännön YEAR ala- ja yläraja. Määrittää haarukan, jonka
+sisällä olevat luvut voidaan tulkita vuosiluvuksi. Arvojen tulee olla positiivisia kokonaislukuja ja MIN_YEAR &lt; MAX_YEAR. Esimerkiksi
+1 tai 543456 tuskin ovat vuosilukuja. (Oletusarvot ovat 0 ja 10000.)
+Nämä voi määrittää vain
+<tt>.nswrc</tt>-tiedostosta. (Valitan, Windows-omistajat!)
+</dd>
+
+<dt>MONTH</dt>
+<dd>
+ Kertoo lausutaanko kuukaudet päiväyksissä niiden nimen vain numeron mukaan.
+ ("heinäkuuta" vs. "seitsemättä"). Arvolla '0' ne luetaan niminä,
+arvolla '1' numerona. Määriteltävissä vain <tt>.nswrc</tt>:n avulla!
+</dd>
+
+<dt>OUTPUT</dt>
+<dd>
+ Määrittää tulostuksen tyypin.
+Tuki raakatekstille (oletusarvo, <tt>plain-text</tt>),
+Microsoftin SAPI 4.0:lle (<tt>sapi4</tt>, toimivuus pitäisi kertaalleen taas tarkistaa) ja omalle suopuhe-XML-moodille (<tt>xml</tt>).
+ Sama kuin <tt><a href="kaytto.shtml#output">--output=<em>string</em></a></tt>
+-optio.
+</dd>
+
+</dl>
+
+
+<a name="lue_sana"></a><h2>void lue_sana(string syoterivi)</h2>
+<p>
+Saa pääsilmukalta (yleensä <a href="#main_loop">main_loop</a>) argumettinaan syöterivin, jonka se paloittelee osiin ja talleettaa osat asianmukaisten
+taulukkojen (pintamuoto, perusmuoto, morfo, synta) ylimpään (30) lokeroon.
+Raakatekstille yritetään vähän arvata sijamuotoja 
+<tt><a href="#plain_text_POS">plain_text_POS</a></tt>-funktion avulla.
+Virittelee hieman tunnistettuja yhdyssanoja 
+<tt><a href="#yhdyssanarajat">yhdyssanarajat</a></tt>-funktion avulla.
+</p>
+
+<a name="lue_yleissanasto"></a><h2>void lue_yleissanasto()</h2>
+<p>
+Luetaan yleisanasto tiedostosta <tt>data/<em>language</em>_yleissanasto.txt</tt>. Sanat talletetaan globaaliin assosiatiiviatulukkoon <tt>%yleissanasto</tt> muodossa <tt>$yleissanasto{$pintamuoto} = $syvamuoto</tt>.
+
+</p>
+
+<a name="luku"></a><h2>int luku(string tulkinta)</h2>
+<p>
+Palauttaa yksikön jos tulkinta sisältää yksikkötulkinnan. Sama perään monikolle
+eli sekä-että-tulkintaiset sanat tulkitaan yksiköiksi. Jos sana on tässä
+suhteessa tulkinnaton (kuten esim. "eri"), niin palautetaan -1.
+</p>
+
+
+
+<a name="main_loop"></a><h2>void main_loop(string filename)</h2>
+<p>
+Varsinainen pääohjelma. Laventaa argumenttinaan <tt>$filename</tt>
+saamansa tiedoston (joka on kotoisin <tt><em>$language</em>_<em>$tagger</em>_text</tt>-funktiolta, esimerkiksi <tt><a href="#fin_twol_text">fin_twol_text</a></tt>-funktiolta.
+</p>
+<p>
+Funktio pyörittää 31:n kokoista ikkunaa (joukko globaaleja taulukoita, paikat 0-30). Uudet sanat <a href="#lue_sana">luetaan ja paloitellaan</a> kohtaan 30,
+kun edellisiä sanoja ollaan siirretty yksi lokero alaspäin. 
+Kohdassa 15 oleva teksti <a href="#lavenna">lavennetaan</a> ja kohdassa 1 
+<a href="#tulosta">tulostetaan</a> tekstit.
+ 
+</p>
+
+
+<a name="merkkimuunnokset"></a><h2> merkkimuunnokset</h2>
+<p>
+Funktio muuttaa SGML-merkkejä ihmisten kielelle, eli näitä &amp;auml vs. 'ä' -muunnoksia. Ei haliitise &amp;#<em>nn</em>;-muunnoksia. Funktiota ei tällä
+hetkellä hyödynnä mikään...
+</p>
+
+<a name="mika_muoto"></a><h2>int mika_muoto(string paate)</h2>
+<p>
+Yrittää selvittää mitä sijamuotoa annettu argumentti
+<tt>$paate</tt> edustaa. Palauttaa numeerisen tiedon sijamuodosta
+Joskus pääte sisältää (myös) tietoa kliitistä, tai numeron
+järjestyslukumaisuudesta; tietoa näistä talletetaan suoraan 
+globaaleihin muuttujiin <tt>$clitic</tt> ja <tt>$perusluku</tt>.
+Esim. tutkittaessa sanaa "SAK:ssakin" pääte olisi "ssakin", josta
+tunnistettaisiin kliitti <tt>-kin</tt> ja inessiivin pääte <tt>-ssA</tt>.
+</p>
+
+<a name="mittalyhenne"></a><h2>string mittalyhenne($string lyhenne)</h2>
+<p>
+Palauttaa mittalyhenteen pitkän muodon. Lyhenteen perässä saa olla
+sijamuodon tunnus (esim. <tt>kg:n</tt>). Aukikirjoitettavan lyhenteen
+taipuvien osien tulee löytyä yleissanastosta.
+</p>
+
+<a name="montako_lukua"></a><h2>int montako_lukua(string analyysi)</h2>
+<p>
+Palauttaa tiedon sanan luvusta, eli jos sanalla on sekä yksiköllinen
+että monikollinen tulkinta, niin 2. Tavallisesti palautetaan 1 ja
+joskus jopa 0 (esim. "eri"-sana). Yhdyssanan tulkinta otetaan vain
+viimeiseltä sanalta.
+</p>
+
+<a name="montako_sijamuotoa"></a><h2>int montako_sijamuotoa(string analyysi)</h2>
+<p>
+Palautaa sanan eri sijamuotojen määrän. 
+Tavallisesti sijamuotojen määrä lasketaan <tt>$analyysi</tt>-argumentista,
+mutta suomen raakatekstissä (jota ei siis tientenkään olla analysoitu)
+lasketaan sijamuodot ohjelman itse generoimien muotojen avulla. 
+(Ohjelma generoi mittayksikkösanoja hash-taulukkoon funktiossa XXX).
+Yhdyssanan tulkinnat lasketaan vain viimeisen sanan osalta.
+</p>
+
+<a name="num_suffix1"></a><h2>string num_suffix1(string kaksiosainen</h2>
+<p>
+Suomen kieltä varten tehty rautalankasäännöstö numero-sana -yhdistelmiä
+varten (esim. 100-vuotias). Kaikki tällaiset eivät taivu oletusnominatiivissa
+ja funktioon on listattu poikkeuksia: 2-pesä, 3-loikkaja, 4-veto jne.
+Olisi mahdollista korvata säännöillä, mutta tällöin tulisi
+listata lähemmäs 50 eri poikkeussääntöä, mikä nyt on vähän liikaa..
+Palautaa argumenttina saamansa merkkijonoa vastaavan merkkijonon, jossa
+numero on muutettu kirjaimiksi.
+</p>
+
+<a name="onko_DD"></a><h2>bool onko_DD(string date)</h2>
+<p>
+Tunnistaa voiko merkkijono olla päivämäärän merkki eli suomessa luku
+1-31, jota seuraa '.'-merkki. 
+</p>
+
+<a name="onko_DDMM"></a><h2>bool onko_DDMM(string dm)</h2>
+<p>
+Tunnistaa voiko, argumentti olla päivämäärästä ja kuun numerosta koostuva
+merkkijono. Funktio hyväksyy helmikuuhun 29:nnen päivän, kiitos karkausvuoden.
+</p>
+
+<a name="onko_DDMMYY"></a><h2>bool onko_DDMMYY(string dmy)</h2>
+<p>
+Kuin edellinen, mutta tarkistaa lisäksi onko perässä mahdollinen vuosiluku.
+</p>
+
+<a name="onko_email"></a><h2>bool onko_email(string address)</h2>
+<p>
+Tutkiiko voisiko argumentti olla sähköpostiosoite, eli onko keskellä
+<tt>@</tt>-merkki ja sen semmoista.
+</p>
+
+<a name="onko_jarjestysluku"></a><h2>bool onko_jarjestysluku(string ord)</h2>
+<p>
+Tutkii voiko annettu luku olla järjestysluku. Tyypillisesti yläraja on
+asetettu kymmeniin tuhansiin, mutta tasa kymmeniin, satoihin, tuhansiin jne.
+Suhtaudutaan asetettan myötämielisemmin.
+</p>
+
+
+<a name="onko_kellonaika"></a><h2>bool onko_kellonaika (string aika)</h2>
+<p>
+Tutkii voiko annettu luku olla kellonaika. Hyväksyy kokonaisluvut
+väliltä 1-24 ja minuutilliset luvut välitä 00.00 - 23.59
+ja lisäksi ajan 24.00. Pisteen sijasta tuntien ja minuuttien
+erotin voi olla kirjoitussääntöjen vastainen, maailmalta
+tänne yleistynyt kaksoispiste, esim. 12:30. 
+</p>
+<a name="onko_kokonaisluku"></a><h2>bool onko_kokonaisluku(string luku)</h2>
+<p>
+TRUE, jos lauseke <tt>^[\-\+±]?([1-9]\d*|0)$</tt> onnistuu, muuten FALSE.
+Käyttäjä joutuu siis erillisellä säännöllä tarkistamaan, jos ei halua
+INT- tai NUM-sääntönsä kelpuuttavan etumerkkejä: <tt>0:REGEX("^[0-9]")</tt>
+</p>
+
+<a name="onko_liukuluku"></a><h2>bool onko_liukuluku(string luku)</h2>
+<p>
+TRUE, jos lauseke <tt>^[\-\+±]?([1-9]\d*|0),\d+$</tt> onnistuu, muuten FALSE.
+Käyttäjä joutuu siis erillisellä säännöllä tarkistamaan, jos ei halua
+INT- tai NUM-sääntönsä kelpuuttavan etumerkkejä: <tt>0:REGEX("^[0-9]")</tt>
+</p>
+
+<a name="onko_numero"></a><h2>bool onko_numero(string candidate)</h2>
+<p>
+Palauttaa FALSE, jos sekä
+<a name="onko_kokonaisluku">onko_kokonaisluku(candidate)</a> että
+<a name="onko_liukuluku">onko_liukuluku(candidate)</a>
+epäonnistuvat, muuten TRUE. Välittää siis ainoan argumenttinsa eteenpäin näille
+funktioille.
+</p>
+
+<a name="onko_paate"></a><h2>bool onko_paate(string paate)</h2>
+<p>
+Tutkii <tt><a href="#mika_muoto">mika_muoto</a></tt>-funktion avulla
+onko argumentti laillinen pääte eli ei. 
+</p>
+
+<a name="onko_sana"></a><h2><tt>bool onko_sana(string sana)</tt></h2>
+<p>
+Yrittää arvata kävisikö annettu merkkijono lukukelpoisesta sanasta eli ei.
+</p>
+
+<a name="onko_URL"></a><h2>bool onko_URL(string URL)</h2>
+<p>
+Tutkii, onko argumentti url eli ei. Etsii päistä
+&lt; ja &gt; merkkejä, tietoa protokollasta, palvelimesta, portista ja
+hakemistosta. Muodostaa päätöksensä näiden tietojen avulla.
+</p>
+
+<a name="onko_tavu"></a><h2>bool onko_tavu(string tavu, int kohta)</h2>
+<p>
+Funktio kertoo, käykö tarkasteltava merkkijono <tt>$tavu</tt> tavusta.
+Argumentti <tt>$kohta</tt> määrittää, onko tavu sananalkuinen (arvo 1),
+sananloppuinen (arvo 2) tai sanansisäinen (arvo 0). 
+</p>
+
+<a name="onko_vuosi"></a><h2>bool onko_vuosi (string vuosi)</h2>
+<p>
+Tutkitaan, mahtuuko argumentti <a href="#lueRC"><tt>lueRC</tt></a>-funktiossa
+annettujen <tt>MIN_YEAR</tt> ja <tt>MAX_YEAR</tt> -arvon sisäpuolelle. Lisäksi
+kelpuutetaan maakohtaisuuksia: 
+-99 -tyyppiset merkkijonot suomen kielessä ja
+englanniksi '69 -tyyppiset merkkijonot.
+</p>
+
+<a name="onko_yleissanastossa"></a><h2>string onko_yleissanastossa(string sana)</h2>
+<p>
+Tarkistaa löytyykö argumentti <tt>$sana</tt> yleissanastostosta.
+Sanasto on aakkostettu ja haku tapahtuu binäärihaulla. Voisi joskus
+muuttaa tänkin hash-taulukoksi selkeyden 
+</p>
+
+<a name="pakkolavenna"></a><h2>pakkolavenna()</h2>
+<p>
+Pakkolaventaa ikkunasta poistumassa olevan merkkijonon, jos se oli
+aikaisemmin katsottu puhumiskelvottomaksi. (Ei kutsuta, jos
+<tt>--safe</tt> -valitsinta on käytetty.)
+Funktion ongelman on se, että se käyttää kiinteää paikkaa (joko
+<tt>$pintamuoto[1]</tt> tai LIMBO-tapauksessa <tt>$korvattu[1]</tt>),
+eikä saa merkkijonoa argumenttinaan... 
+</p>
+
+<a name="pintamuotoon"></a><h2>string pintamuotoon(string syvamuoto)</h2>
+<p>
+Funktio saa argumenttinaan sanan syvamuodon johon on katenoitu perään
+tieto luvusta ja sijasta. Funktio koostuu suuresta joukosta säännöllisiä
+lausekkeita, jotka muuttavat syvämuodon halutuksi pintamuodoksi, joka
+palautetaan.
+</p>
+
+<a name="plain_base"></a><h2>bool plain_base(string sana)</h2>
+<p>
+Käytetään plain-text-moodin BASE-ehdossa tutkimaan löytyykö
+sanalle perusmuotoa eli onko <tt>$nom{$sana}</tt> tosi vai ei.
+(Kongruenssia aiheuttavista sanoistahan generoitiin lista funktiossa
+<a href="#lue_paasanalista">lue_paasanalista</a>.)
+</p>
+
+<a name="plain_text_case"></a><h2>string plain_text_case(string sana)</h2>
+<p>
+Tutkii plain-text -moodissa löytyykö funktiossa
+<a href="#lue_paasanalista">lue_paasanalista</a> generoiduista taulukoista
+tietoa argumentin <tt>$sana</tt> sijamuodosta ja palauttaa tiedon
+sijamuodosta kolmikirjaimisena merkkijonona.
+</p>
+
+<a name="plain_text_POS"></a><h2>string plain_text_POS(string sana)</h2>
+<p>
+Funktio yrittää arvata suppeasti argumenttina saamansa sanan sijamuotoa.
+Palauttaa mielestään oikean sijan, yleensä kuitenkin tyhjän merkkijonon.
+</p>
+
+<a name="preprocess_finnish1"></a><h2>void preprocess_finnish1(string inputfile, string outputfile)</h2>
+<p>
+Tokenisoi syötetiedostoaan sana-per-rivi -muotoon ja tallettaan
+tuloksen toiseen argumenttiinsa.
+</p>
+
+<a name="preprocess_finnish2"></a><h2>void preprocess_finnish2(string in, string out)</h2>
+<p>
+Jatkaa plain-text- ja twol-moodeissa siitä mihin <a href="preprocess_finnish1">preprocess_finnish1</a> jäi.
+</p>
+
+<a name="reformo"></a><h2>string reformo(string perusmuoto)</h2>
+<p>
+Muuttaa argumenttina saamansa <tt>$perusmuoto</tt>-muuttujan vastaavaksi
+syvämuodoksi. Tämän jälkeen syvämuoto lähetetään 
+<a href="#syvamuoto_pintamuotoon">syvamuoto_pintamuotoon</a>-funktiolle, joka
+luo sanasta uuden pintamuodon oikeassa luvussa ja sijassa.
+</p>
+
+
+
+<a name="roomalainen"></a><h2>int roomalainen(string roman)</h2>
+<p>
+Yrittää tunnistaa roomalaisen numero, tällä hetkellä tunnistaa tosin vain
+numerot 1-16. Toisaalta kukaan ei osaa isompia numeroita kuten MMII, joten
+ei niitä myöskään lueta numeroina... Palauttaa tunnistetun numeron koon
+tai arvon -1. Argumentti saa sisältää sijamuototietoa: "Henrik II:n".
+</p>
+
+<a name="save_input"></a><h2>void save_input()</h2>
+<p>
+Tallettaa ohjelmalla tulevan syötteen väliaikaistiedostoon
+<tt>tmp/input.txt</tt>.
+</p> 
+
+<a name="save_output"></a><h2>void save_output()</h2>
+<p>
+Vain www-moodi: tallettaan muuttujan <tt>$wwwoutput</tt>
+sisällön väliaikaistiedostoon.
+</p> 
+
+
+
+<a name="sijamuoto"></a><h2>int sijamuoto(string sijamuoto)</h2>
+<p>
+Parametrissä <tt>$sijamuoto</tt> välitetään funktion sijamuoto merkkijonona
+(tai koko morfologinen analyysi, josta sijamuoto sitten poimitaan.
+Ollaan kiinnostuneita vain yhdyssanan viimeisen osan sijamuodosta).
+Vastaavasti palautetaan sijamuodon numeerinen arvo (ks. alla)
+</p>
+<center>
+<table border="1">
+<tr><td>1</td><td>NOM</td> <td>2</td><td>PTV</td><td>3</td><td>GEN</td> <td>4</td><td>INE</td></tr>
+<tr><td>5</td><td>ELA</td> <td>6</td><td>ILL</td><td>7</td><td>ADE</td> <td>8</td><td>ABL</td></tr>
+<tr><td>9</td><td>ALL</td> <td>10</td><td>ESS</td><td>11</td><td>TRA</td> <td>12</td><td>INS</td></tr>
+<tr><td>13</td><td>ABE</td> <td>14</td><td>CMT</td><td>0</td><td colspan="3"><em>ei mikään/tuntematon</em></td></tr>
+</table>
+</center>
+
+
+<a name="sopiiko_kontekstiin"></a><h2>bool sopiiko_kontekstiin(string ehto)</h2>
+<p>
+Funktio huolehtii TAI-operaation toteutumisessa ehdossa. Jos ehdossa
+ei ole TAI-operaatiota, palautetaan <a href="#sopiiko_kontekstiin2"><tt>sopiiko_kontekstiin2(ehto)</tt></a>. TAI-operaation sisältävä funktio onnistuu,
+jos <a href="#sopiiko_kontekstiin2"><tt>sopiiko_kontekstiin2(HEAD)</tt></a>
+onnistuu, muuten funktio kutsuu itseään rekursiivisesti:
+<a href="#sopiiko_kontekstiin"><tt>sopiiko_kontekstiin(TAIL)</tt></a> ja
+katsoo miten loppuosan käy.
+</p>
+
+<a name="sopiiko_kontekstiin2"></a><h2>bool sopiiko_kontekstiin2(string ehto)</h2>
+<p>
+Tutkii täyttyykö argumenttina saatu yksittäinen lavennussääntöehto ja 
+palauttaa tiedon onnistumisesta.
+</p>
+
+<a name="syvamuoto_pintamuotoon"></a><h2>string syvamuoto_pintamuotoon(string syvamuoto)</h2>
+<p>
+Funktio saa argumenttinaan sanan syvamuodon (perusmuodon), johon liitetään
+tieto luvusta ja sijasta. Yhdistelmä käytetään <a href="#pintamuotoon">pintamuotoon</a>-funktiolla, joka palauttaa pinta muodon, joka palautetaan edelleen
+kutsuneelle funktiolle.
+</p>
+
+<a name="taivuta_numero"></a><h2>string taivuta_numero(string syote)</h2>
+<p>
+Tunnistaa onko kyseessä kokonais. vai liukuluku ja kutsuu
+vastaavaa taivutusfunktiota (<a href="#taivuta_numero2">taivuta_numero2</a> ja
+<a href="#desitaivu">desitaivu</a>) käyttää syötettä kutsuttavan funktion argumenttina. Lopuksi liimataan kliitti perään ja palautetaan merkkijono kutsuvalle
+funktiolle.
+</p>
+
+<a name="taivuta_numero2"></a><h2>string taivuta_numero2(int num)</h2>
+<p>
+Muuttaa numeron merkkijonoksi. Isot numerot luetaan numeromerkki kerrallaan.
+Pienemmät paloitellaan kolmen numeron paloihin ja lähetetään <a href="#aukikirjoita">aukikirjoita</a>-funktiolle aukaistavaksi. Lopputulos
+palautetaan.
+
+</p>
+
+<a name="tarkkuuslavenna"></a><h2>string tarkkuuslavenna(string syote)</h2>
+<p>
+Saa argumenttinaan vaikeasti lausuttavan merkkijonon, jonka
+se lähettää edelleen <a href="#tarkkuuslavenna2">tarkkuuslavenna2</a>-funktiolle. Tämän palauttamaa merkkijonoa siivotaan hieman ja sitten palautetaan
+sekin.
+</p>
+
+<a name="tarkkuuslavenna2"></a><h2>string tarkkuuslavenna2(string sana)</h2>
+<p>
+Joukko rautalankasääntö ongelmallisten sanojen lausumiseksi.
+Palauttaa muokatun argumenttinsa.
+</p>
+
+
+<a name="tavulavenna"></a><h2>string tavulavenna(string tavutettu)</h2>
+<p>
+Funktio tarkastastelee argumenttina saamaansa taveutettua sanaa
+tavu kerrallaan. Jos tavu menee läpi <a href="#onko_tavu">onko_tavu</a>-funktiolta, niin se puhutaan sellaisenaan, muuten merkit luetaan 
+<a href="#yksitellen>yksitellen</a>.
+</p>
+
+<a name="tavuta"></a><h2>string tavuta(string sana)</h2>
+<p>
+Funktio palauttaa argumenttina saamansa muuttujan <tt>$sana</tt> tavutetun
+muodon (pienillä kirjaimilla). 
+Funktio on yllättävänkin sofistikoitunut, ja se osaa laventaa myös
+vierasperäisiä nimiä, kuten "Lindström" oikein. Tällöin ohjelma
+tunnistaa vierasperäisiä -CV-sääntöä rikkovia konsonanttisekvenssejä
+ja pilkkoo nimen pienempiin osiin ("lind" ja "ström") ja kutsuu
+itseään rekursiivisesti. Täydellinen tämäkään ei tietenkään ole.
+Funktiota käytetään pääteltäessä, onko jokin sana lausumiskelpoinen
+vai ei. Jos kaikkien yksittäisten tavujen rakenne on kohdallaan,
+sanankin voi lausua. Muuten luetaan kirjain kerrallaan <em>mutta yleensä vain</em> ne tavut, jotka ovat lausumiskelvottomia. (Tämä nopeuttaa luentaa.) 
+</p>
+
+<a name="token2snt"></a><h2>void token2snt(string input_file, string output_file)</h2>
+<p>
+Muuttaa sana-per-rivi-muotoisen tekstin lause-per-rivi-muotoiseksi.
+Palautus tehdää vain FDG-moodissa. Funktion avulla ko. jäsentimen preprosessori
+pilkkoo vähän paremmin kuin ilman sitä.
+</p>
+
+<a name="tulosta"></a><h2>void tulosta()</h2>
+<p>
+Tulostaa <tt>$komme[1]</tt>-muuttujan arvon, jos sanaa on muutettu, muuten
+itse sanan (<tt>$pintamuoto[1]</tt>). Jos murre oli asetettu päälle
+askarrellaan murremuutokset täällä, jahka viitsin tehdä tuen.
+Tulostus on pyydettyä (.nswrc tai komentorivi) tulostusta.
+<tt>--force</tt>-tilassa pakotetaan ne numerot, joita ei osattu laventaa
+auki oletusarvoilla (yksikön nominatiivi), ja lisäksi tutkitaan kaikista
+sanoista näyttävätkö ne luettavaksi kelpaavilta ja tarvittaessa muokataan
+niitä lukukelpoisimmiksi. Lisäksi XML-tulostuksessa rikastetaan tulostusta
+tiedoilla sanojen sijamuodoista, alkukahdennuksesta jne. 
+</p>
+
+<a name="TWOL_disambiguate_finnish1"></a><h2>string TWOL_disambiguate_finnish1(string analyysi)</h2>
+<p>
+Heitetään TWOL-tulkinnasta yleisimpiä tiettyjen sanojen virhetulkintoja pois.
+Esim. "vuotta" ei liene sama kuin "ilman vuota". Palautetaan
+redusoitu analyysi. 
+</p>
+
+<a name="TWOL_disambiguate_finnish2"></a><h2>string TWOL_disambiguate_finnish2(string analyysi)</h2>
+<p> 
+Tehdään disambiguaatiota lingvistisin perustein: jos yksiselitteinen tulkinta,
+niin poistetaan moniselitteiset. Jos kliititön tulkinta, niin poistetaan
+kliitilliset ("alanko"). Poistetaan pienellä alkavat PROPrit, joilla on muita
+tulkintoja. Poistetaan derivaatalliset tulkinnat, jos derivaatattomia.
+Poistetaan INStruktiivitulkinnat jos muita tulkintoja ("tuskin"). YM.
+</p>
+
+<a name="TWOL_perusmuodot"></a><h2>string TWOL_perusmuodot(string tulkinnat)</h2>
+<p>
+Muuttaa TWOL:n tulkintojen formaattia hieman paremmin <tt>@morfo</tt>-taulukolle
+sopivaksi.
+</p>
+
+<a name="TWOL_restore_cases"></a><h2>void TWOL_restore_cases(string input1, string input2, string output)</h2>
+<p>
+Funktio palauttaa oikean kirjainkoon analysoiduille sanoille, sillä TWOL 
+(ainakaan käyttämäni vanha versio) ei osaa tulkita isoja kirjaimia.
+Argumentin <tt>$input1</tt> niminen tiedosto sisältää TWOL-analyysit ja
+argumentti <tt>$input2</tt> kertoo mihin tiedostoon oikean kirjoitusasun
+omaavat sanat ovat kätketty. Nämä yhdistetään ja tulos talletetaan argumentissa
+<tt>$output</tt> nimettyyn tiedostoon. Lisäksi funktio
+kutsuu disambiguointia suorittavia 
+<a href="#TWOL_disambiguate_finnish1">TWOL_disambiguate_finnish1</a>- ja 
+<a href="#TWOL_disambiguate_finnish2">TWOL_disambiguate_finnish2</a>-funktioita.
+</p>
+
+<a name="TWOL_riisu"></a><h2>string TWOL_riisu(string twol_analyysi)</h2>
+<p>
+Poimii TWOL:n analyysistä sanan pintamuodon ja palauttaa sen.
+</p>
+
+<a name="usage"></a><h2> usage</h2>
+<p>
+Jos ohjelmakutsussa annetaan optio <tt>--help</tt> kutsutaan tätä
+funktiota ja poistutaan ohjelmasta. Funktion olisi tarkoitus
+tuostaa ruudulle ohjesivu.
+</p>
+
+<a name="voiko_laventaa"></a><h2>bool voiko_laventaa(string saanto)</h2>
+<p>
+Tarkastaa on täyttääkö lavennussäännön kohde siltä 
+<tt>$saanto</tt>-argumentin edellyttämät ominaisuudet,
+eli onko tarkasteltava sana oikeasti numero kun sääntö on INT.
+Tarkastaa myös argumentin <tt>$saanto</tt> sisältämät parametrit,
+nykyään funktio tosin tarkistaa vain sääntöjen <a href="saannot.shtml#lts"><tt>LTS</tt></a> ja <a href="saannot.shtm#partial_replacement"><tt>PARTIAL_REPLACEMENT</tt></a> <em>mistä</em>-osan. Säännoista enemmän
+lavennussääntöjen yhteydessä. Palauttaa tiedot onnistumisesta.
+</p>
+
+<a name="www_demo"></a><h2> www_demo</h2>
+<p>
+Tämän funktion tulisi tarjota Perlin Taint-moodia
+wwTw-demolle. Nykyinen www-demo on hieman vanha rautalankaversio.
+Funktio ei ole käytössä.
+</p>
+
+<a name="yhdyssanarajat"></a><h2>void yhdyssanarajat()</h2>
+<p>
+Lisää <tt>$pintamuoto[30]</tt>-sanaan'_'-erottimen yhdyssanojen eri osien 
+väliin, jos tulkinta niin sallii. Ideana oli, että merkitsemisestä olisi
+hyötyä tavupainoja laitettaessa, mutta tätä ei kai koskaan hyödynnetä
+vaan rajat taidetaan poistaa jossain muualla, muistais vaan missä.
+</p>
+
+<a name="yksitellen"></a><h2>string yksitellen(string sana, bool case_sensitive, bool join_numbers)</h2>
+<p>
+Argumentti <tt>join_numbers</tt> tarkoittaa ollessaan tosin, että peräkkäiset
+numerot (ei nollalla alkavat) tulkitaan kuuluviksi yhteen ja ne luetaan
+yhtenä numerona. Muuten funktio käsittelee syötetään merkki kerrallaan.
+Numerot tungetaan <a href="#taivuta_numero">taivuta_numero</a>-funktiolle
+ja muut merkit <a href="#avaa_merkki">avaa_merkki</a>-funktiolle.
+Tavallisesti merkit avataan yksikön nominatiivissa, mutta viimeinen
+merkki taipuu ja saa mahdolliset kliitit peräkkäin, esim. "SDP:ssäkin" =&gt;
+"äs dee peessäkin".
+</p>
+
+
+<p>
+Lista ei ole tällä hetkellä enää täydellinen.
+Osasta on päästy eroon, muita on tullut tilalle.
+</p>
+
+
+<h1>Globaalit muuttujat</h1>
+<p>
+Hyödylliset globaalit muuttujat, kaikkien ei tosin pitäisi olla globaaleja...
+</p>
+
+<pre>
+%abl       - yleisten mittayksiköiden ablatiivimuodot kongruenssia varten
+%ade       - yleisten mittayksiköiden adessiivimuodot kongruenssia varten
+
+%agree_abbr     - lista kongruoivista lyhenteistä, ladataan vastaavasti
+                  säänötitiedostosta
+
+$agreement_case - Sijamuoto, jossa kongruoidaan.
+$agreement_number - Luku, jossa kongruoidaan
+$agree_case_count - Vahtii, ettei lavennussänntö sisällä liikaa                                    AGREE-CASE-rajoitteita
+$agree_number_count - Vrt. edellinen
+
+@argument  - ikkunassa olevien saneiden token-tagiin suopuhemoodissa
+              lisättävät atribuutit
+
+$akronyymi - apumuuttuja, vahtii onko lyhenne oikea lyhenne vai akronyymi
+
+%all       - yleisten mittayksiköiden allatiivimuodot kongruenssia varten
+
+$apukommentti - tarkasteltavana olevan saneen kommentin täydennys
+
+$case      - lavennettava sane merkkijonona, vrt. muoto.
+
+$clitic    - Kliittiä joudutaan joskus salakuljettamaan globaalissa
+             muuttujassa :(
+
+$debug     - Jos tosi, niin ohjelma kertoo missä se milloin menee.
+             Tulostaa paljon tekstiä STDERR:iin ja hidastaa ohjelmaa.
+
+$default_case - Oletusarvoinen sijamuoto merkkijonona ("NOM")
+
+
+$default_kuunum   - jos tosi, niin kuut luetaan numeroina "ensimmäistä",
+                    muuten luetaan nimet: "tammikuuta"
+ 
+$default_max_year - vuosiluvun yläraja (mm. YEAR-rajoite)
+$default_min_year - vuosiluvun alaraja (mm. YEAR-rajoite)
+
+%ess       - yleisten mittayksiköiden essiivimuodot kongruenssia varten
+
+$etaisyys  - rajoitteen etäisyys tarkasteltavasta saneesta
+
+$force     - määrittää onko pakkolavennus päällä.
+             Oletusarvoisesti tosi.
+
+%ela       - yleisten mittayksiköiden elatiivimuodot kongruenssia varten
+%gen       - yleisten mittayksiköiden genetiivimuodot kongruenssia varten
+%ill       - yleisten mittayksiköiden illatiivimuodot kongruenssia varten
+%ine       - yleisten mittayksiköiden inessiivimuodot kongruenssia varten
+
+@komme     - ikkunoissa olevien saneiden lavennuksiin tehtyjen muutoksen
+             (@korvattu) selitykset
+
+$kommentti - tarkasteltavana olevalle saneelle annettava kommentti
+
+%kongruoiva_sana - hash, johon ladataan vastaavasta tiedostosta, konguoivat
+                   saneet
+
+@korvattu  - alkuperäisen saneen (@pintamuoto) korvaava lavennettu muoto
+
+@lavennussaanto - taulukko, johon on tallettu sääntötiedostosta ladatut
+                  lavennussäännöt...
+
+$luku      - lavennettavan saneen luku numerona
+
+
+$mode      - Vrt. --mode valitsin.
+             Oletusarvoisesti "run", jolloin ohjelma itse arvaa
+             lauserajojen paikat. Muut arvot "line" lause-per-rivi
+             -muotoiselle tekstille ja "formo" sanaston kehitykseen.
+
+@morfo     - ikkunassa olevien saneiden morfologiset analyysit (twol, fdg)
+
+$muoto     - lavennetavan saneen sijamuoto numeerisena
+
+%nom       - yleisten mittayksiköiden nominatiivimuodot kongruenssia varten
+
+$number    - luku merkkijonona
+
+$output    - Tulostetyyppi, vrt. --output -optio
+
+$perusluku - jos tosi, niin numero avataan åeruslukuna, muuten
+             järjestysnumerona
+
+@perusmuoto - ikkunassa olevien saneiden perusmuodot (twol, fdg)
+@pintamuoto - ikkuna saneiden pintamuotoille
+
+%ptv       - yleisten mittayksiköiden partitiivimuodot kongruenssia varten
+
+$recursion - rekursion suunta rinnastuskonjuktioissa ("left", "none" tai
+             "right")
+
+@synta     - ikkunassa olevien saneiden syntaktinen analyysi (fdg)
+
+@tag       - ikkunassa olevan saneen eteen tulevat tagit (suopuhe ja sapi4)
+
+$tagger    - Käytettävä lingvistinen työkalu, vrt. --tagger -optio.
+
+%tra       - yleisten mittayksiköiden transitiivimuodot kongruenssia varten
+
+$verbose   - Välitulostuksia näytölle
+
+$www       - WWW-demoni käyttää hieman eri funktioita tms. 
+             Jos muuttuja on tosi, niin silloin tuotaan WWW:tä. 
+$wwwoutput - WWW-demon tulostus talletetaan tähän muuttujaan
+             STDOUT-tulostuksen sijasta.
+
+%yksittainen_merkki - hash, johon ladataan yksittäisten taipumattomien
+                      merkkien lavennukset vastaavasta sääntötiedostosta
+      
+</pre>
+
+</body>
+</html>
+
+
+

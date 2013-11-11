@@ -1,0 +1,938 @@
+# This program is distributed under Gnu Lesser General Public License (cf. the
+# file LICENSE in distribution).
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+# viime
+# '70s uupuu
+# 1st samoin...
+
+# EXPERIMENT WITH MONEY
+NUM() _SEP_ 0:REGEX("(0|[1-9][0-9]*),[0-9][0-9]") 1:STRING("markkaa") _SEP_ LIMBO pennitesti
+PARTIAL-REPLACEMENT("^yksi\spilkku")TO("markka") _SEP_ 0:COMMENT("pennitesti") _SEP_ NUM pennitesti2
+PARTIAL-REPLACEMENT("pilkku")TO("markkaa") _SEP_ 0:COMMENT("pennitesti") _SEP_ NUM pennitesti2
+
+REPLACEMENT("penniä") _SEP_ -1:COMMENT("pennitesti2") _SEP_ N rahapuu
+
+NUM() _SEP_ 0:REGEX("(0|[1-9][0-9]*),[0-9][0-9]") 1:STRING("euroa") _SEP_ LIMBO senttitesti
+PARTIAL-REPLACEMENT("^yksi\spilkku")TO("euro") _SEP_ 0:COMMENT("pennitesti") _SEP_ NUM pennitesti2
+PARTIAL-REPLACEMENT("pilkku")TO("euroa") _SEP_ 0:COMMENT("senttitesti") _SEP_ NUM senttitesti2
+REPLACEMENT("senttiä") _SEP_ -1:COMMENT("senttitesti2") _SEP_ N rahapuu
+
+
+
+##############################################################################
+############# OPPIARVOT, kesken => ###########################################
+# fil. tri
+
+
+REPLACEMENT("filosofian") _SEP_ 0:REGEX("^[Ff]il\.$") 1:REGEX("(kand|[Ll]is|[mM]aist|toht|tri|yo)\.?") _SEP_ N OPPIAINE
+
+REPLACEMENT("kandidaatti") _SEP_ 0:STRING("kand.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+REPLACEMENT("lisensiaatti") _SEP_ 0:STRING("lis.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+REPLACEMENT("maisteri") _SEP_ 0:STRING("maist.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+REPLACEMENT("tohtori") _SEP_ 0:STRING("toht.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+REPLACEMENT("tohtori") _SEP_ 0:STRING("tri") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+REPLACEMENT("ylioppilas") _SEP_ 0:STRING("yo.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+
+
+
+REPLACEMENT("äsdee") _SEP_ 0:STRING("sd.") _SEP_ N puoluekanta
+REPLACEMENT("vas") _SEP_ 0:STRING("vas.") _SEP_ N puoluekanta
+REPLACEMENT("oikealla") _SEP_ 0:STRING("oik.") _SEP_ N puoluekanta
+REPLACEMENT("keskusta") _SEP_ 0:STRING("kesk.") _SEP_ N puoluekanta
+REPLACEMENT("vee-äs") _SEP_ 0:STRING("vs.") _SEP_ N viransijainen
+REPLACEMENT("vihreät") _SEP_ 0:STRING("vihr.") _SEP_ N puoluekanta
+REPLACEMENT("kokoomus") _SEP_ 0:STRING("kok.") _SEP_ N puoluekanta
+
+############## <= OPPIARVOT ###################################################
+###############################################################################
+############## RAAMATTU => ####################################################
+REPLACEMENT("ensimmäinen") _SEP_ 0:STRING("1.") 1:REGEX("^(Aik|Joh|Kor|Kun|Moos|Piet|Sam|Tess|Tim)\.?$") _SEP_ NUM RAAM1
+REPLACEMENT("toinen") _SEP_ 0:STRING("2.") 1:REGEX("^(Aik|Joh|Kor|Kun|Moos|Piet|Sam|Tess|Tim)\.?"$) _SEP_ NUM RAAM1
+REPLACEMENT("kolmas") _SEP_ 0:STRING("3.") 1:REGEX("^(Joh|Moos)\.?$") _SEP_ NUM RAAM1
+REPLACEMENT("neljäs") _SEP_ 0:STRING("4.") 1:REGEX("^Moos\.?$") _SEP_ NUM RAAM1
+REPLACEMENT("viides") _SEP_ 0:STRING("5.") 1:REGEX("^Moos\.?$") _SEP_ NUM RAAM1
+
+REPLACEMENT("Johanneksen kirje, luku") _SEP_ 0:STRING("Joh.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("korinttolaiskirje, luku") _SEP_ 0:STRING("Kor.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("kuningasten kirja, luku") _SEP_ 0:STRING("Kun.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("Mooseksen kirja, luku") _SEP_ 0:STRING("Moos.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("Samuelin kirja, luku") _SEP_ 0:STRING("Sam.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("tessalonikalaiskirje, luku") _SEP_ 0:STRING("Tess.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("aikakirja, luku") _SEP_ 0:STRING("Aik.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ RAAM2
+REPLACEMENT("Paavalin kirje Timoteukselle, luku") _SEP_ 0:STRING("Tim.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Pietarin kirje, luku") _SEP_ 0:STRING("Piet.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Matteuksen evankeliumi, luku") _SEP_ 0:STRING("Matt.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Markuksen evankeliumi, luku") _SEP_ 0:STRING("Mark.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Luukkaan evankeliumi, luku") _SEP_ 0:STRING("Luuk.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Johanneksen evankeliumi, luku") _SEP_ 0:STRING("Joh.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Apostolien teot, luku") _SEP_ 0:STRING("Apt.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje roomalaisille, luku") _SEP_ 0:STRING("Room.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Joosua, luku") _SEP_ 0:STRING("Joos.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Tuomarien kirja, luku") _SEP_ 0:STRING("Tuom.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje galatalaisille, luku") _SEP_ 0:STRING("Gal.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje efesolaisille, luku") _SEP_ 0:STRING("Ef.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje filippiläisille, luku") _SEP_ 0:STRING("Fil.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje kolossalaisille, luku") _SEP_ 0:STRING("Kol.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Nehemia, luku") _SEP_ 0:STRING("Neh.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Paavalin kirje Tiitukselle, luku") _SEP_ 0:STRING("Tiit.") -1:COMMENT("RAAM1") 1:NUMBER() _SEP_ N RAAM2
+# vs. Established XXXX takenna
+# pelottaa, "Est." voi olla myös "established"...
+#REPLACEMENT("Ester, luku") _SEP_ 0:STRING("Est.") 1:NUMBER() _SEP_ N RAAM2 
+REPLACEMENT("Paavalin kirje Filemonille, luku") _SEP_ 0:STRING("Filem.") 1:NUMBER() _SEP_ N RAAM2
+## saattaa tarvita tarkennusta
+REPLACEMENT("psalmi") _SEP_ 0:STRING("Ps.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("kirje hebrealaisille, luku") _SEP_ 0:STRING("Hebr.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Sananlaskut, luku") _SEP_ 0:STRING("Snl.") 1:NUMBER() _SEP_ N RAAM2
+## saattaa tarvita tarkennusta
+#REPLACE("Kork.")WITH("korkea vaisu, luku")¤_ NUMBER()¤N RAAM2
+REPLACEMENT("Jesaja, luku") _SEP_ 0:STRING("Jes.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Jeremia, luku") _SEP_ 0:STRING("Jer.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Valitusvirret, luku") _SEP_ 0:STRING("Val.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Hesekiel, luku") _SEP_ 0:STRING("Hes.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Daniel, luku") _SEP_ 0:STRING("Dan.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Jaakobin kirje, luku") _SEP_ 0:STRING("Jaak.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Juudan kirje, luku") _SEP_ 0:STRING("Juud.") 1:NUMBER() _SEP_ N RAAM2
+### vs. "Ilmestynyt", saattaa tarvita tarkennusta
+##REPLACE("Ilm.")WITH("Johanneksen ilmestys, luku")¤_ NUMBER()¤N RAAM2
+REPLACEMENT("Hoosea, luku") _SEP_ 0:STRING("Hoos.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Aamos, luku") _SEP_ 0:STRING("Aam.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Obadja, luku") _SEP_ 0:STRING("Ob.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Habaduk, luku") _SEP_ 0:STRING("Hab.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Sefanja, luku") _SEP_ 0:STRING("Sef.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Haggai, luku") _SEP_ 0:STRING("Hag.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Sakarja, luku") _SEP_ 0:STRING("Sak.") 1:NUMBER() _SEP_ N RAAM2
+REPLACEMENT("Malakia, luku") _SEP_ 0:STRING("Mal.") 1:NUMBER() _SEP_ N RAAM2
+# JATKA LISTAA...ja tee versiot ilman lukuja.. 
+# .. ja lyhentämättömät
+
+# oletetaan, ettei näissä ole yli 99 lukua...
+INT() _SEP_  0:REGEX("^[1-9][0-9]?$") -1:COMMENT("RAAM2")||-1:REGEX("^(Esra|Job|Jooel|Joona|Miika|Ruut)$") _SEP_ NUM RAAM3
+
+REPLACEMENT("jakeet") _SEP_ 0:STRING(":") -1:COMMENT("RAAM3) 1:NUMBER() 2:STRING("-") 3:NUMBER() _SEP_ N RAAM4a
+REPLACEMENT("jae") _SEP_ 0:STRING(":") -1:COMMENT("RAAM3) 1:NUMBER() _SEP_ N RAAM4b
+# oletetaan ettei ole yli 999 jaetta...
+INT() _SEP_  0:REGEX("^[1-9][0-9]?[0-9]?$") -1:COMMENT("RAAM4")||-1:COMMENT("RAAM6") _SEP_ NUM RAAM5
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -2:COMMENT("RAAM4a") _SEP_ N RAAM6
+
+##### <= RAAMATTU ###########################################################
+#############################################################################
+##### OSOITTEET => ##########################################################
+
+INT() _SEP_  0:REGEX("^[1-9][0-9]{0,3}$") -1:REGEX("^[A-ZÅÄÖ][a-zåäö_\-]+(katu|tie)$") _SEP_ NUM KATUOSOITE1a
+INT() _SEP_  0:REGEX("^[1-9][0-9]?[0-9]?$") -1:STRING("PL") _SEP_ NUM KATUOSOITE1b
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -1:COMMENT("KATUOSOITE1") 1:NUMBER() _SEP_ N väliviiva
+
+INT() _SEP_ 0:REGEX("^[1-9][0-9]?[0-9]?$")  -1:STRING("-") -2:COMMENT("KATUOSOITE1a") _SEP_ NUM KATUOSOITE2
+INT() _SEP_  0:REGEX("^[1-9][0-9]?[0-9]?$") -1:REGEX("^[A-Za-z]$") -2:COMMENT("KATUOSOITE") _SEP_ NUM RAPPU
+
+XML-TAG("break/") _SEP_ 0:REGEX("^[0-9]{5}$")  -1:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO 
+DIGIT() _SEP_ 0:REGEX("^[0-9]{5}$")  -1:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO 
+
+XML-TAG("break/") _SEP_ 0:REGEX("^[0-9]{5}$")  -1:STRING(",") -2:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO
+DIGIT() _SEP_ 0:REGEX("^[0-9]{5}$")  -1:STRING(",") -2:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO
+
+XML-TAG("break/") _SEP_ 0:REGEX("^[0-9]{5}$")  -1:STRING(",") -2:REGEX("^[A-Za-z]$") -3:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO
+DIGIT() _SEP_ 0:REGEX("^[0-9]{5}$")  -1:STRING(",") -2:REGEX("^[A-Za-z]$") -3:COMMENT("(KATUOSOITE|RAPPU)") _SEP_ NUM POSTINUMERO
+
+#### <= OSOITTEET ###########################################################
+#############################################################################
+#### ROOMALAISET NUMEROT => #################################################
+
+
+REPLACEMENT("kolmonen") _SEP_ 0:STRING("III") -1:SENTENCE(REGEX("^(Ale|Amiraali|Aura|Beer|Budweiser|Doppelbock|[Jj]oulu\-?olut|Karhu|Karjala|[Kk]esäolut|Koff|Kommodori|Kulta|[Ll]ager.*|Legenda|Olvi|Porter|Pääsiäis_?olut|Sandels|Saxon|Sininen|Special|Velvet|Weizze)$")) _SEP_ N olutmerkki
+REPLACEMENT("ykkönen") _SEP_ 0:STRING("I") -1:REGEX("^(,|ja|tai)$") -2:COMMENT("olutmerkki") _SEP_ N olutmerkki
+REPLACEMENT("kolmonen") _SEP_ 0:STRING("III") -1:REGEX("^(,|ja|tai)$") -2:COMMENT("olutmerkki") _SEP_ N olutmerkki
+REPLACEMENT("nelonen") _SEP_ 0:STRING("IV") -1:REGEX("^(,|ja|tai)$") -2:COMMENT("olutmerkki") _SEP_ N olutmerkki
+
+REPLACEMENT("nelonen") _SEP_ 0:STRING("IV") -1:SENTENCE(REGEX("^(Ale|Amiraali|Aura|Beer|Budweiser|Doppelbock|Jouluolut|Karhu|Karjala|[Kk]esäolut|Koff|Kommodori|Kulta|[Ll]ager|Legenda|Olvi|Porter|Pääsiäisolut|Sandels|Saxon|Sininen|Special|Velvet|Weizze)$")) _SEP_ N olutmerkki
+
+
+ROMAN() _SEP_  -1:REGEX("^(Aleksanteri|Iivana|Nikolai)$") _SEP_ NUM ROMAN (tsaarin nimi)
+ROMAN() _SEP_  -1:REGEX("^(Bonifatius|Calixtinus|Gregorius|Honorius|Johannes|Klemens|Paavali|Pius)$") _SEP_ NUM ROMAN (paavin nimi)
+ROMAN() _SEP_  -1:REGEX("^(Aleksi|Bero|Petros)$") _SEP_ NUM ROMAN (patriarkka tai muu kirkollinen)
+ROMAN() _SEP_  -1:REGEX("^(Amenhotep|Ramses)$") _SEP_ NUM ROMAN (faarao)
+ROMAN() _SEP_  -1:REGEX("^(Katariina|Margareeta)$") _SEP_ NUM ROMAN QUEEN
+ROMAN() _SEP_  -1:REGEX("^(Charles|Edmund|Ed[vw]ard|Elisabeth?|Ethelred|George|Harold|Henry|James|Jaakko|Kaarle|Maria|Mary|Ri[ck]hard|[VW]ilhelm|William|Yrjö)$") _SEP_ NUM ROMAN ENGLISH
+ROMAN() _SEP_  -1:REGEX("^(Alexander|Constantine|David|Donald|Duncan|Kenneth|Malcolm|Robert)$") _SEP_ NUM ROMAN SCOTTISH MONARCHS
+ROMAN() _SEP_ -1:REGEX("^(Henrik|Lud[wv]ig)$") _SEP_ NUM ROMAN ranskalainen monarkki
+# myös hisapno
+ROMAN() _SEP_ -1:REGEX("^(Albert)$") _SEP_ NUM ROMAN belg. monarkki
+
+ROMAN() _SEP_ -1:REGEX("^(Beatrix)$") _SEP_ NUM ROMAN holl. monarkki
+
+ROMAN() _SEP_ -1:REGEX("^(Haakon|Harald|Olav)$") _SEP_ NUM ROMAN norj. monarkki
+
+ROMAN() _SEP_ -1:REGEX("^(Leo)$") _SEP_ NUM ROMAN bysantin keisari
+
+ROMAN() _SEP_ -1:REGEX("^(Arahad|Ara(g|th)orn|Ar[gv]eleg|Atanatar|Earnil|Hyarmendacil|Narmacil|Romendacil)$) _SEP_ NUM ROMAN Tolkien-king
+
+ROMAN() _SEP_  -1:REGEX("^(Abdullah|Adam|Carlos|Eerik|Ferdinand|Filip|Frans|Fredrik|Gustav|Hassan|Juba|Justinianus|Kristian|Kustaa|Maximilian|Mohammed|Napoleon|Oskar|Rainier|Rama|Rudolf|Sigismund|Väinö|Yrjö)$") _SEP_ NUM ROMAN (kuninkaallisen nimi)
+
+ROMAN(numtype=CARD) _SEP_  -1:BASE-REGEX("(.*_)?sali")||-1:STRING("Mk") _SEP_ NUM roomalainen perusluku
+
+ROMAN(recursion=left,case=HEAD) _SEP_  1:AGREE-CASE() 1:BASE-REGEX("(.*arkkitehti|aste|basso|divisioona|erä|.*hallitus|jakso|.*johtaja|.*kanttori|kappalainen|ki?erros|.*luokka|.*lääkäri|maa_?ilman_sota|.*ministeri|neljännes|olympiadi|painos|palkinto|.*pastori|pataljoona|vaihe|viulu)") _SEP_ NUM kongruoi seuraavan kanssa
+ROMAN(recursion=left,case=HEAD,num=PL) _SEP_  1:AGREE-CASE() 1:NUM(PL) 1:BASE-REGEX("olympialai(nen|set)") _SEP_ NUM Olympialaiset
+
+## <= ROOMALAISET #############################################################
+###############################################################################
+## PANKKITILI => ##############################################################
+# näillekin voisi tehdä jotain pituusrajoitteita...
+DIGIT() _SEP_  -1:BASE-REGEX("(Aktia|Leonia|Merita|Nordea|.*[Pp]ankki|PSP|Sampo|STS|SYP)") 1:STRING("-") 2:REGEX("^[0-9]+$") _SEP_ NUM PANKKITILI1 PhrasifyDigits
+DIGIT() _SEP_  -1:REGEX("^(Aktia|.*[Bb]anki?|Leonia|Merita|Nordea|.*[Pp]ankk?i|Sam[mp]o)([aio]?n|ss[aä])?$") 1:STRING("-") 2:REGEX("^[0-9]+$") _SEP_ NUM PANKKITILI1 PhrasifyDigits
+DIGIT() _SEP_  -1:REGEX("^(KOP|PSP|STS|SYP)([i:][a-zä]+)?$") 1:STRING("-") 2:REGEX("^[0-9]+$") _SEP_ NUM PANKKITILI1 PhrasifyDigits
+
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -1:COMMENT("PANKKITILI1") _SEP_ C viiva
+DIGIT() _SEP_  -1:STRING("-") -2:COMMENT("PANKKITILI1") _SEP_ NUM PANKKITILI2 PhrasifyDigits
+
+## <= PANKKITILI ############################################################
+#############################################################################
+# PUHELIN =>
+
+DIGIT() _SEP_ -2:BASE-REGEX(".*numero") -1:BASE("olla") _SEP_ NUM SUUNTANUMERO1 PhrasifyDigits 
+
+REPLACEMENT("puh") _SEP_ 0:REGEX("^[Pp]uh\.$") 1:REGEX("\+?[0-9]") _SEP_ N puh
+
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING("(") -1:BASE("(puhelin|faksi)")||-1:REGEX("^(puh\.?|p\.?|faksi.*|puheli.*)$") 1:REGEX("^[0-9]{1,3}$") 2:STRING(")") _SEP_ XX SUUNTASULKU1
+
+
+
+XML-TAG("phrase/") _SEP_  -1:COMMENT("SUUNTASULKU2") _SEP_ XML phrase-komento suuntanumeron perään...
+
+# ITSE SUUNTANUMERO:
+DIGIT() _SEP_  -1:COMMENT("SUUNTASULKU1") 1:STRING(")") _SEP_ NUM SUUNTANUMERO1
+DIGIT() _SEP_  -1:BASE("(puhelin|faksi)")||-1:REGEX("^(puh\.?|p\.?|faksi.*|puheli.*)$") 1:STRING("-") 2:NUMBER() _SEP_ NUM SUUNTANUMERO1 PhrasifyDigits
+
+DIGIT() _SEP_ -1:STRING("-") -2:REGEX("^0\d\d?$") _SEP_ NUM PUHELIN2 PhrasifyDigits
+
+DIGIT() _SEP_  -1:BASE("(puhelin|faksi)")||-1:REGEX("^([Pp]uh\.?|p\.?)$") _SEP_ NUM SUUNTANUMERO1 PhrasifyDigits
+DIGIT() _SEP_  -1:REGEX("^faksi")||-1:REGEX("^(puh\.?|p\.?)$") _SEP_ NUM SUUNTANUMERO1 (TWOL ei tunnista faksia) PhrasifyDigits
+
+DIGIT() _SEP_ -1:REGEX("numero") 0:REGEX("^[0-9]{4,}") _SEP_ NUM SUUNTANUMERO1 PhrasifyDigits
+
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING(")") -1:COMMENT("SUUNTANUMERO1") _SEP_ XX SUUNTASULKU2a
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING("-") -1:COMMENT("SUUNTANUMERO1") _SEP_ XX SUUNTASULKU2b
+
+DIGIT() _SEP_  -1:COMMENT("SUUNTASULKU2") _SEP_ NUM PUHELIN2 PhrasifyDigits
+
+DIGIT() _SEP_  -1:COMMENT("(SUUNTA(NUMERO|SULKU2)|PUHELIN2)") _SEP_ NUM PUHELIN2 PhrasifyDigits
+
+
+# <= PUHELIN ################################################################
+#############################################################################
+## LYHENTEET => #############################################################
+
+REPLACEMENT("muun muassa") _SEP_ 0:REGEX("^mm.$") 1:REGEX("^[a-zäö]") _SEP_ A muun muassa
+REPLACEMENT("kerros") _SEP_ 0:REGEX("krs") _SEP_ N lyhenne
+REPLACEMENT("ooyy") _SEP_ 0:REGEX("^Oy$") _SEP_ N lyhenne
+REPLACEMENT("noin") _SEP_ 0:REGEX("^n\.$") 1:REGEX("^[a-zåäö0-9]") _SEP_ A noin
+
+
+REPLACEMENT("kello") _SEP_ 0:REGEX("^(klo|Klo|KLO)$") _SEP_ N lyhenne
+REPLACEMENT("numero") _SEP_ 0:REGEX("^[Nn]:o$") _SEP_ N n:o 
+REPLACEMENT("kertaa") _SEP_ 0:REGEX("^[Xx]$") -1:COMMENT("KERROIN") _SEP_ C KERTAA
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING("/") -1:STRING("km") 1:STRING("h") _SEP_ N kilometriä tunnissa
+REPLACEMENT("tunnissa") _SEP_ 0:STRING("h") -1:STRING("/") -2:STRING("km") _SEP_ N kilometriä tunnissa
+
+REPLACEMENT("sivua") _SEP_ 0:STRING("s.") -1:REGEX("^[1-9][0-9][0-9]?[0-9]?$") 1:STRING("<utterance>") _SEP_ N sivuaa
+
+COUNT-ABBR() _SEP_  -1:REGEX("^[\+\-]?\d+(,\d+)?$") _SEP_ N määrälyhenne
+
+PARTIAL-REPLACEMENT("^I\-ol")TO("ykkös-ol") _SEP_  _SEP_ N exception
+PARTIAL-REPLACEMENT("^III\-ol")TO("kolmos-ol") _SEP_  _SEP_ N exception
+PARTIAL-REPLACEMENT("^IV\-ol")TO("nelos-ol") _SEP_  _SEP_ N exception
+
+# pitäskö olla abbr:ssa? joo...
+REPLACEMENT("är-yy") _SEP_ 0:STRING("ry") _SEP_ N rekisteröity yhdistys
+REPLACEMENT("veesee") _SEP_ 0:STRING("wc") _SEP_ N rekisteröity yhdistys
+
+
+REPLACEMENT("on yhtä kuin") _SEP_ 0:STRING("=") _SEP_ C MATEM
+REPLACEMENT("plus") _SEP_ 0:STRING("+") _SEP_ C MATEM
+REPLACEMENT("miinus") _SEP_ 0:STRING("-") -1:NUMBER() -2:COMMENT("MATEM") _SEP_ C MATEM
+
+AGREE-ABBR() _SEP_  1:REGEX("^[a-zåäö]+$") 1:AGREE() 1:NUM(PL)||1:-CASE(GEN) _SEP_ A kong_lyh
+AGREE-ABBR() _SEP_  1:AGREE() 2:REGEX("^(:|;|\.)$") _SEP_ A kong_lyh lauseraja
+
+ABBR() _SEP_  _SEP_ N vihoviimeinen yleislyhenne
+
+# <= LYHENTEET ##############################################################
+#############################################################################
+# => JÄRJESTYSLUVUT TÄHÄN => ################################################
+
+DD(recursion=left) _SEP_  1:REGEX("^(tammi|helmi|maalis|huhti|touko|kesä|heinä|elo|syys|loka|marras|joulu)kuuta$") _SEP_ NUM päivämäärä
+ORD(recursion=left) _SEP_  1:REGEX("^krs$") _SEP_ NUM järjestyslukua indikoiva lyhenne
+ORD(recursion=left,case=HEAD) _SEP_  1:AGREE-CASE() 1:-NUM(PL) _SEP_ NUM järjestysluku
+
+# <= JÄRJESTYSLUVUT TÄHÄN <= ################################################
+#############################################################################
+
+#############################################################################
+## => VARMAT NUMEROT ########################################################
+NUM() _SEP_  -1:REGEX("^([Rr]unsaat|[Vv]ajaat|[Rr]eilut)$") _SEP_ NUM runsaat/vajaat
+
+NUM(case=HEAD) _SEP_ -1:-CASE(NOM) -1:-NUM(PL) -1:BASE-REGEX("(runsas|vajaa|reilu)") -1:AGREE-CASE() _SEP_ NUM kongruoi etumääreensä kanssa
+
+
+NUM() _SEP_ 1:BASE-REGEX("(aika|alku|loppu)") _SEP_ alussa ja loppuun ei saa kongruoida
+
+
+
+# urheilutulokset:
+# tehokkuussyistä -5 vikana
+NUM _SEP_ 1:STRING("-") 2:NUMBER() 3:STRING("(") 4:NUMBER() 5:STRING("-") 6:NUMBER() -1:REGEX("[a-yäö]") _SEP_ NUM TULOS-KOTI uusi
+
+NUM() _SEP_ -1:CASE(INS)||-1:REGEX("^(erin|pistein|tasan|maalein|(peli|ottelu|erä)[a-zåäö]*)$")||-1:BASE-REGEX(".*tulos") 1:STRING("-") 2:NUMBER() _SEP_ NUM TULOS-KOTI
+
+NUM() _SEP_ -1:REGEX("[^0-9]$") 0:REGEX("^[0-9]$") 1:STRING("-") 2:REGEX("^[0-9]$") 3:REGEX("[.,;!?]") _SEP_ NUM TULOS-KOTI lyhyys paljastaa
+
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING("-") -1:COMMENT("TULOS\-KOTI") _SEP_ C TULOKSEN välinen '-'
+NUM() _SEP_ -2:COMMENT("TULOS\-KOTI") _SEP_ NUM TULOS-VIERAS
+NUM() _SEP_ -1:REGEX("^(ja|tai|\(|,)$") -2:COMMENT("TULOS\-VIERAS") _SEP_ NUM TULOS-KOTI
+
+
+
+
+
+
+# YKSITTÄISET
+DIGIT() _SEP_ -1:REGEX("^Boeing$") 0:REGEX("^[0-9]{3}($|:)") _SEP_ NUM Boeing 737
+DIGIT() _SEP_ -1:REGEX("^(Mazda|Peugeot)$") 0:REGEX("^[0-9]{3}($|:)")  _SEP_ NUM auto
+
+DIGIT() _SEP_ -1:REGEX("^Nokia$") 0:REGEX("^(16[13][01]|3[1234]10|3330|61[15]0|6610|7210|7650|880)$") _SEP_ NUM Nokian känny
+
+
+
+NUM() _SEP_  1:REGEX("^[Xx]$") _SEP_ NUM KERROIN
+
+TIME(case=ILL) _SEP_  1:REGEX("^(saakka|asti|mennessä)$") _SEP_ NUM kello
+TIME(recursion=right) _SEP_  -1:REGEX("^([Kk](el)?lo|K(EL)?LO)$") _SEP_ NUM KELLONAIKA1 
+TIME() _SEP_  -1:STRING("-") -2:COMMENT("KELLONAIKA1") _SEP_ NUM KELLONAIKA2 
+TIME(recursion=right) _SEP_  -1:REGEX("^(ma|ti|ke|to|pe|la|su)$") _SEP_ NUM [TIME]
+TIME(recursion=right) _SEP_  -1:BASE-REGEX("(maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai)") _SEP_ NUM päivä 
+TIME(recursion=right) _SEP_  -1:REGEX("^(maanantai|tiistai|keskiviikko|torstai|perjantai|lauantai|sunnuntai|arki|viikonloppu)(i?sin)?$") _SEP_ NUM päivä 
+
+TIME _SEP_ -2:STRING("Kello") -1:REGEX("on") _SEP_ NUM ad hoc
+TIME _SEP_ 0:REGEX("\.\d+,") _SEP_ NUM aikatulos BreakAll
+TIME _SEP_ 1:STRING("kärjestä") _SEP_ NUM urheilutulos
+
+
+
+# TURVALLISET KEULAAN
+INT() _SEP_  0:REGEX("^(0|[1-9][0-9]{0,3})$") -1:STRING("Vuonna") _SEP_ NUM YEAR lauseen alussa
+# entä ensi
+INT() _SEP_  -1:STRING("vuonna") -2:-CASE(ESS) -2:-BASE("ensi") _SEP_ NUM vuonna X
+
+
+
+
+# tee 1 : 20000 ennen seuraavaa:
+NUM(case=GEN) _SEP_  0:REGEX("^[0-9]") -1:BASE-REGEX("(mitta_?kaava|suhde|kerroin)") _SEP_ NUM SUHDE1
+NUM(case=GEN) _SEP_  0:REGEX("^[0-9]") -1:BASE-REGEX("(mitta_?kaava|suhde|kerroin)") 2:BASE("olla") _SEP_ NUM SUHDE1
+
+REPLACEMENT("suhde") _SEP_ 0:STRING(":") -1:COMMENT("SUHDE1") _SEP_ C suhde
+
+
+
+NUM(case=ILL) _SEP_  -1:STRING(":") -2:COMMENT("SUHDE1") _SEP_ NUM SUHDE2
+
+
+
+YEAR(recursion=right) _SEP_  -1:BASE("vuosi") -1:NUM(PL) 1:REGEX("^(,|ja|tai)$") _SEP_ NUM vuosijoukko
+YEAR(recursion=right) _SEP_  -1:BASE("vuosi_?malli") _SEP_ NUM vuosimalli
+
+
+#NUM(case=GEN) _SEP_ 2:BASE-REGEX("(joukko|raja|yksikkö)") 2:-CASE(GEN) 2:NUM(SG) 1:CASE(GEN) _SEP_ NUM 10 onnellisen joukossa
+
+NUM(case=GEN) _SEP_ 1:REGEX("n$") 2:BASE-REGEX("^(joukk?o|raja|yksikk?ö|keskiarvo)") _SEP_ NUM lite
+
+# 1:REGEX("n$") toimii stand alone -versiossakin, mutta...
+NUM(case=GEN) _SEP_ 2:STRING("voimin")||2:STRING("kanssa")||2:BASE("vuotuinen")||2:BASE("päivittäinen") -1:-STRING("-") 1:REGEX("n$") _SEP_ 10 hengen voimin 
+
+NUM(case=GEN) _SEP_  -1:-CASE(GEN) 1:MORPHEME(INF3) 1:NUM(PL) 1:BASE("tietää") _SEP_ NUM X:n tietämissä
+NUM(case=GEN) _SEP_  -1:-CASE(GEN) 1:NUM(SG) 1:BASE("tuntuma") _SEP_ NUM X:n tuntumaan
+# analysaattorit tunnistaa huonosti perusmuodon joten =>
+NUM(case=GEN) _SEP_  -1:-CASE(GEN) 1:REGEX("^(hujako|paikke)i(lla|lta|lle|ssa)$") _SEP_ NUM X:n hujakoissa
+NUM(case=GEN) _SEP_  1:REGEX("^(ala|ylä)\_?puolell[ae]$") _SEP_ NUM X:n alapuolella
+
+
+NUM(recursion=left) _SEP_  1:STRING("eri") 2:CASE(NOM)||2:NUM(PL) _SEP_ NUM monikon ja nominatiivin edestä [NUM]
+
+DDMMYY(case=ILL) _SEP_  1:REGEX("^(asti|saakka|mennessä)$") _SEP_ N asti/saakka PhrasifyDMY
+DDMM(case=ILL) _SEP_  1:REGEX("^(asti|saakka|mennessä)$") _SEP_ N asti/saakka
+DDMM(case=ILL) _SEP_  1:YEAR 2:REGEX("^(asti|saakka|mennessä)$") _SEP_ N asti/saakka
+
+NUM(case=HEAD,recursion=left) _SEP_  1:AGREE-CASE() 1:BASE("aste")||1:BASE("prosentti")||1:BASE("[Cc]elsius")||1:BASE("[Kk]elvin") _SEP_ NUM -astetta
+
+NUM(case=HEAD,recursion=left) _SEP_  1:AGREEMENT-WORD() _SEP_ NUM Kongruoiva sana:
+NUM(case=HEAD) _SEP_  1:STRING("-") 2:NUMBER(3) 3:AGREEMENT-WORD() _SEP_ NUM Kongruoiva rinnastus:
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -1:COMMENT("Kongruoiva\srinnastus") _SEP_ C rinnastus
+
+NUM(case=HEAD) _SEP_  1:REGEX("^(Australian|Yhdysvaltojen|Kanadan)$") 2:-CASE(NOM) 2:-NUM(PL) 2:AGREE-CASE() 2:BASE("dollari") _SEP_ NUM maan
+NUM(case=HEAD) _SEP_  1:REGEX("^(Ruotsin|Viron|Tanskan)$") 2:-CASE(NOM) 2:-NUM(PL) 2:AGREE-CASE() 2:BASE("kruunu") _SEP_ NUM maan
+NUM(case=HEAD) _SEP_  1:REGEX("^(Suomen|Saksan)$") 2:-CASE(NOM) 2:-NUM(PL) 2:AGREE-CASE() 2:BASE("markka") _SEP_ NUM maan
+
+NUM(case=HEAD) _SEP_ 1:CASE(GEN) 1:POS(N)||1:POS(A) 2:AGREEMENT-WORD() _SEP_ NUM kongruoi genetiivin yli
+
+
+INT(case=HEAD,recursion=left) _SEP_  0:REGEX("^[1-9]") 1:STRING("eri") 2:AGREEMENT-WORD() _SEP_ NUM Kongruoiva sana:
+INT(case=HEAD) _SEP_  0:REGEX("^[1-9]") 1:AGREE-CASE() 1:MORPHEME(SUP) _SEP_ NUM kongruoi superlatiivin kanssa:
+
+INT() _SEP_ 1:MORPHEME(CMP) _SEP_ NUM komparatiivin edessä
+
+INT(case=HEAD) _SEP_  1:AGREE-CASE() 1:BASE(".*[lk]as") 1:MORPHEME(N) _SEP_ NUM kogruoi -laisen kanssa
+
+INT(case=HEAD) _SEP_  1:AGREE-CASE() 1:MORPHEME(A\/N) _SEP_ NUM kongruoi -laisen kanssa
+
+
+INT(case=HEAD) _SEP_  1:AGREE-CASE() 1:BASE(".*l[aä]inen") 1:MORPHEME(N) _SEP_ NUM kogruoi -laisen kanssa
+
+INT(case=HEAD) _SEP_ 0:-YEAR() 1:AGREE-CASE() 1:BASE-REGEX(".*[atä][aä]j[aä]") _SEP_ NUM kong. open ja yrittäjän kaa
+
+INT(case=HEAD) _SEP_ 0:-YEAR() 1:AGREE-CASE() 1:BASE-REGEX(".*aani") _SEP_ NUM kong. afgaanin
+
+INT(case=HEAD) _SEP_ 0:-YEAR() 1:AGREE-CASE() 1:BASE-REGEX(".*isti") _SEP_ NUM kong. kubistin kera
+
+INT(case=HEAD) _SEP_ 0:-YEAR() 1:AGREE-CASE() 1:BASE-REGEX(".+([klst]i)j[aä]") _SEP_ NUM kong. pyöräilijän kera
+
+
+NUM(recursion=right) _SEP_  -1:BASE("vahvuus") _SEP_ NUM silmälasivahvuus
+
+
+INT() _SEP_ 0:REGEX("^[12]\d\d\d$") 1:MORPHEME(PCP2) _SEP_ NUM pcp2 
+
+# JÄRJESTYSHERKÄT:
+
+# recursion: both? =>
+DD() _SEP_  1:STRING("-") 2:DDMM()||2:DDMMYY() _SEP_ NUM rinnasteinen päiväys
+DD() _SEP_  1:STRING("-") 2:DD() 3:REGEX("^.*kuuta$") _SEP_ NUM rinnasteinen päiväys
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -1:COMMENT("rinnasteinen\späiväys") _SEP_ C rinnastus
+DDMMYY() _SEP_  _SEP_ N yksinäinen päiväys ja vuosi PhrasifyDMY
+DDMM() _SEP_  _SEP_ N yksinäinen päiväys
+
+#
+
+
+
+NUM(case=PTV) _SEP_  -1:REGEX("^[Jj]okaista$") 1:CASE(PTV) _SEP_ NUM PTV PTV:n edessä
+
+NUM(recursion=left,case=HEAD) _SEP_  1:STRING("eri") 2:AGREE-CASE() _SEP_ NUM eri-sanan jälkeinen pääsana
+
+
+
+
+NUM(case=HEAD) _SEP_  1:-NUM(PL) 1:AGREE-CASE() 1:BASE-REGEX("l[aä]inen$") _SEP_ NUM -lAinen-morfeemin edestä
+NUM(case=HEAD) _SEP_  1:STRING("eri") 2:-NUM(PL) 2:AGREE-CASE() 2:BASE-REGEX(".*l[aä]inen") _SEP_ NUM -lAinen-morfeemin edestä
+
+NUM(case=HEAD) _SEP_  1:-NUM(PL) 1:AGREE-CASE() 1:BASE-REGEX("l[aä]is_[a-zåäö]") _SEP_ NUM venäläissotilaan
+
+
+
+
+
+
+NUM() _SEP_  -1:REGEX("^[Kk]aikki$") _SEP_ NUM kaikki 123 maassa asuvaa
+
+
+
+
+
+
+
+
+
+## agree-abbr? NUM(case=HEAD)¤_ AGREE-ABBR()¤NUM kongruoi lyhenteen kanssa
+
+## Nokia 3210:n jälkeen
+NUM(case=NOM,recursion=left) _SEP_  1:REGEX("^[A-ZÅÄÖ][a-zåäö]") _SEP_ NUM Erisnimen edestä
+
+
+
+
+YEAR() _SEP_  -1:BASE-REGEX(".*(kevät|kesä|syksy|talvi)") _SEP_ NUM vuodenajan jälkeinen vuosiluku
+
+
+
+
+
+
+YEAR() _SEP_  -1:REGEX("^(tammi|helmi|maalis|huhti|touko|kesä|heinä|elo|syys|loka|marras|joulu)kuuta$") -2:COMMENT("päivämäärä") _SEP_ NUM päivämäärän jälkeinen vuosiluku
+
+# NUM-SUFFIX1 10-vuotias '-' || engl 12th
+NUM-SUFFIX1(recursion=left) _SEP_  _SEP_ NUM NUM-SUFFIX1 10-vuotias
+
+REPLACEMENT("viiva") _SEP_ 0:STRING("-") -1:NUMBER() -1:COMMENT("NUM\-SUFFIX1") _SEP_ C väliviiva NUM-SUFFIX
+
+
+
+
+
+NUM() _SEP_  1:REGEX("^[\+\*=]$") _SEP_ NUM MATEM. KAAVA
+
+# TWOL (ei CONEXOR), mutta toisaalta conexorin pintasyntaksi hoitaa tämän...
+
+INT(case=head) _SEP_  1:AGREE-CASE() 1:MORPHEME(DV\-JA) _SEP_ NUM -JA-morfeemi (opettaja)
+
+NUM() _SEP_  1:REGEX("^\-[a-zåäö]+$") _SEP_ NUM Agenda 2000 -ohjelma
+# <= vierakieliset vaarallisia
+
+
+
+
+###############################################################################
+# CONEXOR pintasyntaksi => ####################################################
+
+NUM(case=HEAD) _SEP_  0:SYNTAX("qn:>\+1") 1:AGREE-CASE() 1:REGEX("^[a-zåäö_]+$") _SEP_ NUM pintasyntaksi +1
+NUM(case=HEAD) _SEP_  0:SYNTAX("qn:>\+2") 2:AGREE-CASE() 2:REGEX("^[a-zåäö_]+$") _SEP_ NUM pintasyntaksi +2
+NUM(case=HEAD) _SEP_  0:SYNTAX("qn:>\+3") 3:AGREE-CASE() 3:REGEX("^[a-zåäö_]+$") _SEP_ NUM pintasyntaksi +3
+NUM(recursion=left) _SEP_  0:SYNTAX("qn:>\-") _SEP_ NUM pintasyntaksi viittaa taaksepäin
+
+# <= CONEXOR pintasyntaksi ####################################################
+###############################################################################
+
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING("-") 1:REGEX("^[A-ZÅÄÖ]?[a-zåäö]+$") _SEP_ C ajatusviiva pois
+
+
+
+NUM(recursion=left) _SEP_  1:BASE("voima") _SEP_ vuosiluku tms. voima-sanan edestä
+NUM(recursion=left) _SEP_  1:POS(NUM) _SEP_ NUM numeraalin edestä
+NUM(recursion=left) _SEP_  1:POS(PRON) _SEP_ NUM pronominin edestä (TWOL)
+NUM(recursion=left) _SEP_  1:POS(ADV) _SEP_ NUM adverbin edestä [NUM]
+NUM(recursion=left) _SEP_  1:POS(V) _SEP_ NUM verbin edestä
+NUM(recursion=left) _SEP_  1:POS(COORD)||1:POS(CC) 2:-NUMBER() _SEP_ NUM ei-numero rinnastuskonjunktio
+NUM(recursion=left) _SEP_  1:CASE(NOM)||1:NUM(PL) _SEP_ NUM monikon ja nominatiivin edestä [NUM]
+NUM(recursion=left) _SEP_  1:REGEX("^[\.:\?!;]$") _SEP_ NUM numero lauserajalla
+NUM(recursion=left) _SEP_  1:CASE(PTV) _SEP_ NUM Partitiivin edestä
+
+NUM(case=HEAD) _SEP_ 0:REGEX("^[1-9]\d{4,}$")  1:AGREE-CASE() 1:-NUM(PL) 1:REGEX("^[^A-ZÅÄÖ]") 1:CASE(INE)||1:CASE(ELA)||1:CASE(ILL) _SEP_ NUM INE-ELA-ILL
+NUM(case=HEAD) _SEP_ 0:REGEX("^[1-9]\d\d?\d?$")  1:AGREE-CASE() 1:-NUM(PL) 1:REGEX("^[^A-ZÅÄÖ]") 1:CASE(INE)||1:CASE(ELA)||1:CASE(ILL) _SEP_ NUM INE-ELA-ILL
+NUM(case=GEN) _SEP_  1:CASE(GEN) 1:NUM(SG) 2:STRING("voimin") _SEP_ NUM 10 X:n voimin
+
+NUM(recursion=left) _SEP_  1:BASE("loppu") _SEP_ NUM perusmuoto nominatiivinen edestä
+
+
+NUM(case=ELA) _SEP_ -1:REGEX("^[Yy]ksi$") 1:REGEX("st[aä]$") _SEP_ yksi N:stä
+
+# 1) 2) 3)
+
+# tagi laitetaan sulun eteen ennen sen lausunnan poistoa...
+XML-TAG("break/") _SEP_ -1:COMMENT("LIST\-(HEAD|TAIL)") _SEP_ add break tags
+
+
+INT(numtype=ORD) _SEP_  -1:STRING("<utterance>")||-1:REGEX("^[:;]$") 1:STRING(")") _SEP_ NUM LIST-HEAD
+
+
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING(")") -1:COMMENT("LIST\-") _SEP_ katoaa
+
+# rumaa duplikaatiota...
+XML-TAG("break/") _SEP_  -1:SENTENCE(COMMENT("LIST\-") 1:STRING(")") _SEP_ NUM LIST-TAIL
+INT(numtype=ORD) _SEP_  -1:SENTENCE(COMMENT("LIST\-") 1:STRING(")") _SEP_ NUM LIST-TAIL
+
+
+INT _SEP_ 1:STRING(")") _SEP_ NUM sulun edeltä jos ei listassa
+
+NUM _SEP_ -1:REGEX("[Ll]ip(ut|pu)$") _SEP_ NUM rahayksikön puuttuessa
+
+
+NUM(recursion=left) _SEP_  1:STRING(",") 2:REGEX("^\D") _SEP_ NUM lausekerajalla
+
+REPLACEMENT("vont") _SEP_ 0:REGEX("^[Ww]on\'t$") _SEP_ CONTEXT
+REPLACEMENT("dont") _SEP_ 0:REGEX("^[Dd]on\'t$") _SEP_ CONTEXT
+REPLACEMENT("käänt") _SEP_ 0:REGEX("^[Cc]an\'t$") _SEP_ CONTEXT
+REPLACEMENT("hävent") _SEP_ 0:REGEX("^[HH]aven\'t$") _SEP_ CONTEXT
+REPLACEMENT("aim") _SEP_ 0:REGEX("^I\'m$") _SEP_ CONTEXT
+
+
+# vieraat kirjaimet
+PARTIAL-REPLACEMENT("[ÀàÁáÂâÃã]")TO("a") _SEP_ _SEP_ LIMBO 2a
+PARTIAL-REPLACEMENT("[Ææ]")TO("ä") _SEP_ _SEP_ LIMBO æ2ä
+PARTIAL-REPLACEMENT("[Çç]")TO("s") _SEP_ _SEP_ LIMBO ç2s
+PARTIAL-REPLACEMENT("[ÈÉÊËèéêë]")TO("e") _SEP_ _SEP_ LIMBO 2e
+PARTIAL-REPLACEMENT("[Ññ]")TO("nj") _SEP_ _SEP_ LIMBO ñ2nj
+PARTIAL-REPLACEMENT("[Øø]")TO("ö") _SEP_ _SEP_ LIMBO ø2ö
+PARTIAL-REPLACEMENT("[ðÐþÞ]")TO("th") _SEP_ _SEP_ LIMBO 2th
+PARTIAL-REPLACEMENT("[Üü]")TO("y") _SEP_ _SEP_ LIMBO ü2y
+
+
+
+# alkukahdennusta yhdyssanarajoilla
+LTS("[Tt]ervetul")TO("tervettul") _SEP_ _SEP_ INTJ tervetuloa
+LTS("e\-([hklptv])")TO("e-$1$1") _SEP_ 0:MORPHEME(NOM\sSG\s=) _SEP_ alkukahdennus
+
+#alkukahdennus sanarajoilla
+# VAARALLINEN TAUKOJEN KANNALTA...
+#LTS("^([hHkKlLpPtTvV])")TO("$1\l$1") _SEP_ -1:REGEX("..[^ei]e$") -1:MORPHEME(NOM\sSG) -1:-MORPHEME(FORGN|PROP|PRON) _SEP_ N ulk. alkukahdennus
+
+#LTS("^([hHkKlLMmNnpPtTvV])")TO("$1$1") _SEP_ -1:MORPHEME(IMPV\sACT\sSG2) -1:-MORPHEME(pA) -1:-MORPHEME(V\sPRES\sACT\sSG3) _SEP_ TWOL ulk. alkukahdennus
+
+
+LTS("p([äa])$")TO("pp$1") _SEP_ 0:MORPHEME(\-PA)||0:MORPHEME(pA) 0:POS(V) 0:MORPHEME(SG2) 0:MORPHEME(IMP)||0:MORPHEME(IMPV) _SEP_ LIMBO käsky+PA
+
+
+
+REPLACEMENT("rokken") _SEP_ 0:REGEX("^[Rr]ock'n$") _SEP_ N rock
+LTS("^([Yy])ht\'")TO("$1ht-") _SEP_  _SEP_ LIMBO yhtaikainen
+LTS("^([Tt])äst\'")TO("$1äst-") _SEP_  _SEP_ LIMBO vast'edes
+LTS("^([Vv])ast\'")TO("$1ast-") _SEP_  _SEP_ LIMBO vast'edes
+LTS("^([Pp])ar\'")TO("$1ar-") _SEP_  _SEP_ LIMBO par'aikaa
+
+LTS("ei\'i")TO("ei-i") _SEP_ _SEP_ LIMBO rei'ittää
+LTS("iu\'u")TO("iu-u") _SEP_ _SEP_ LIMBO liu'ut
+LTS("aa\'a")TO("aa-a") _SEP_ _SEP_ LIMBO raa'at
+LTS("uo\'o")TO("uo-o") _SEP_ _SEP_ LIMBO ruo'ot
+
+
+# FIXING FOREIGN NAMES...
+
+
+
+LTS("[OoAa]ught")TO("oot") _SEP_ _SEP_ LIMBO ought2oot
+
+
+
+LTS("Joach")TO("joak") _SEP_ _SEP_ LIMBO joakim
+
+LTS("acht")TO("aht") _SEP_ _SEP_ LIMBO acht2aht
+
+LTS("([Ss])chl")TO("$1l") _SEP_  _SEP_ LIMBO schl2sl
+
+LTS("([Ss])chw")TO("$1v") _SEP_  _SEP_ LIMBO schw2sw
+LTS("([Ss])chn")TO("sn") _SEP_ _SEP_ LIMBO schn2sn
+LTS("[Ss]ci")TO("ski") _SEP_ _SEP_ LIMBO sci2ski scifo
+
+LTS("[Cc]h?r")TO("kr") _SEP_  _SEP_ LIMBO chr2kr cr2kr
+LTS("[Cc]h?l")TO("kl") _SEP_  _SEP_ LIMBO chl2kl klooria
+LTS("tch")TO("ts") _SEP_  _SEP_ LIMBO butch
+
+
+# yritetään poimia marcin pois (d'arcin) 
+#LTS("rci")TO(rsi") _SEP_ 0:REGEX("cin$") _SEP_ LIMBO rci2rsi
+
+
+
+
+LTS("wich")TO("vits") _SEP_ _SEP_ LIMBO wich2vits
+LTS("[eE]ich")TO("aih") _SEP_ _SEP_ LIMBO eich2eih
+LTS("iche")TO("ikhe") _SEP_ _SEP_ ich2ih ulrich
+
+
+
+LTS("[Jj]ohn")TO("tson") _SEP_ _SEP_ LIMBO John
+# Mendelssohn
+LTS("sohn")TO("son") _SEP_ _SEP_ LIMBO Mendelssohn
+# LTS 
+
+LTS("^O\'")TO("O") _SEP_  _SEP_ LIMBO oneal
+LTS("^([Dd])\'")TO("$1") _SEP_ 0:REGEX("^..[AEIOUY]") _SEP_ LIMBO d'Artagnan
+LTS("^([Ll])\'")TO("$1") _SEP_  _SEP_ LIMBO L'Oreal
+
+
+LTS("^Ma?c")TO("Mäk") _SEP_ 0:REGEX("^Ma?c[A-Z][a-z]") _SEP_ LIMBO mäkkäri
+
+
+
+LTS("ow'")TO("ou") _SEP_ 0:REGEX("ow'(h[aeiouyäö]n|ll|n$|nsa|s$|s[st][aä]|t|ta)") _SEP_ LIMBO show'n
+
+LTS("aw'")TO("oo") _SEP_ 0:REGEX("aw'(h[aeiouyäö]n|ll|n$|nsa|s$|s[st][aä]|t|ta)") _SEP_ LIMBO straw'n
+
+
+
+LTS("'s")TO("s") _SEP_ 0:REGEX("'s($|t|[ei])") _SEP_ LIMBO X's
+
+LTS("ough'")TO("ou") _SEP_  0:REGEX("ough'(h[aeiouyäö]n|ll|n$|nsa|s$|s[st][aä]|t|ta)") _SEP_ LIMBO borough'n
+
+LTS("et'")TO("ee") _SEP_  0:REGEX("et'(a|h[aeiouyäö]n|l[tl]|n$|nsa|s$|s[st][aä]|t|ta)") _SEP_ LIMBO monnet'n
+
+
+
+#LTS("([aeiouyäö])hr$")TO("$1$1r") _SEP_ _SEP_ LIMBO hr2Vr jahr2jaar
+LTS("([aeiouyäö])hr")TO("$1$1r") _SEP_ 0:REGEX("[aeiouyäö]hr[bcdfghjklmnpqrstvwxz]") _SEP_ LIMBO hr2Vr jahr2jaar
+
+LTS("eaux'")TO("oo") _SEP_ 0:REGEX("x\'(ksi|ll[ae]|n|nsa|s?[st][aä])") _SEP_ LIMBO heitto+GEN
+LTS("eux'")TO("öö") _SEP_ 0:REGEX("x\'(ksi|ll[ae]|n|nsa|s?[st][aä])") _SEP_ LIMBO heitto+GEN
+
+LTS("x\'")TO("") _SEP_ 0:REGEX("[aeiouy]x\'(n|ssa|ta)$") _SEP_ LIMBO heitto+GEN
+LTS("[Xx]{1,2}")TO("ks") _SEP_ _SEP_ LIMBO x2ks
+
+
+#LTS("[Aa]hl")TO("aal") _SEP_ 0:REGEX("[Aa]hl($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO ahl2aal
+# Pihlman
+#LTS("[Ii]hl")TO("iil") _SEP_ 0:REGEX("[Ii]hl($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO ihl2iil
+# Kohl
+#LTS("[Oo]hl")TO("ool") _SEP_ 0:REGEX("[Oo]hl($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO ohl2ool
+
+# Kahn Autobahn Svahnström
+#LTS("[Aa]hn")TO("aan") _SEP_ 0:REGEX("[Aa]hn($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO ahn2aan
+# Rehn
+LTS("([AaEeIiOouÖö])h([lmnr])")TO("$1\l$1$2") _SEP_ 0:REGEX("[AaEeIiOouÖö]h[lmnr]($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO VhC2VVC
+
+
+
+
+
+LTS("dd$")TO("d") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO dd2d
+LTS("dd")TO("d") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("dd[bcdfghjklmnpqrstvwxz]") _SEP_ LIMBO dd2d
+
+LTS("ff$")TO("f") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO ff2f
+LTS("ff")TO("f") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("ff[bcdghjklmnpqrstvwxz]") _SEP_ LIMBO ff2f
+
+LTS("gg$")TO("g") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO gg2g
+LTS("gg")TO("g") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("gg[bcdfhjklmnpqrstvwxz]") _SEP_ LIMBO gg2g
+
+
+LTS("ll$")TO("l") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO ll2l
+LTS("ll")TO("l") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("ll[bcdfghjkmnpqrstvwxz]") _SEP_ LIMBO ll2l
+LTS("mm$")TO("m") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO mm2m
+LTS("mm")TO("m") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("mm[bcdfghjklnqprstvwxz]") _SEP_ LIMBO mm2m
+
+LTS("nn$")TO("n") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO nn2n
+LTS("nn")TO("n") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("nn[bcdfghjklmpqrstvwxz]") _SEP_ LIMBO nn2n
+LTS("pp$")TO("p") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO pp2p
+LTS("pp")TO("p") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("pp[bcdfghjklmnqrstvwxz]") _SEP_ LIMBO pp2p
+
+LTS("rr$")TO("r") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO rr2r
+LTS("rr")TO("r") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("rr[bcdfghjklmnqpstvwxz]") _SEP_ LIMBO rr2r
+
+#LTS("ss$")TO("s") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO ss2s
+#LTS("ss")TO("s") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("ss[bcdfghjklmnqprtvwxz]") _SEP_ LIMBO ss2s
+
+#LTS("tt$")TO("t") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO tt2t
+#LTS("tt")TO("t") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("tt[bcdfghjklmnpqrsvwxz]") _SEP_ LIMBO tt2t
+
+# viisi
+LTS("[Ss]htsh")TO("sh") _SEP_ _SEP_ LIMBO shtsh2sh hrushtshev
+
+
+
+#################
+# NELIKIRJAIMISET
+LTS("[Ee]ach")TO("iits") _SEP_ _SEP_ LIMBO each2iits
+LTS("echn")TO("ehn") _SEP_ _SEP_ LIMBO echn2ehn tech
+LTS("[Ee]igh")TO("ei") _SEP_ _SEP_ LIMBO freight
+
+LTS("iech")TO("aih") _SEP_ _SEP_ LIMBO eich2aih reich
+
+LTS("n[zs]ky")TO("nski") _SEP_  _SEP_ LIMBO nzky2nski
+
+LTS("oach")TO("outs") _SEP_ _SEP_ LIMBO oach2outs
+LTS("orld")TO("oold") _SEP_ _SEP_ LIMBO world2woold
+LTS("ouch")TO("ats") _SEP_ _SEP_ LIMBO ouch2outs 
+
+LTS("(^S|s)ch?m")TO("$1m") _SEP_ _SEP_ LIMBO scmidt
+
+LTS("tech")TO("teh") _SEP_ _SEP_ LIMBO tech2teh
+LTS("t[zs]ky")TO("tski") _SEP_  _SEP_ LIMBO tzky2tski
+
+
+##################
+# KOLMIKIRJAIMISET
+
+LTS("ace")TO("ase") _SEP_ _SEP_ LIMBO ace2ase
+# brahms
+LTS("ach($|[bcdfghjklmnpqrstvwxz])")TO("ah$1") _SEP_ _SEP_ LIMBO ach2ah bach
+LTS("[Aa]hm")TO("aam") _SEP_ 0:REGEX("[Aa]hm($|[bcdfghjkmnpqrstvwxz])") _SEP_ LIMBO ahm2aam
+LTS("[Aa]wk")TO("ook") _SEP_ _SEP_ awk2ook
+
+LTS("cca")TO("kka") _SEP_ _SEP_ LIMBO rebecca
+LTS("cch")TO("kh") _SEP_ _SEP_ LIMBO Bacchus
+LTS("cco")TO("kko") _SEP_ _SEP_ LIMBO accord
+LTS("chs")TO("hs") _SEP_ _SEP_ LIMBO chs2hs
+LTS("cht")TO("ht") _SEP_ _SEP_ LIMBO nacht
+
+LTS("cqu")TO("kv") _SEP_ _SEP_ LIMBO jacques
+
+
+LTS("^Gw")TO("Gu") _SEP_ 0:REGEX("^Gw[eui]") _SEP_ LIMBO gwy2gui welsh
+
+
+LTS("ich")TO("ih") _SEP_ _SEP_ ich2ih ulrich
+LTS("igh")TO("ai") _SEP_ _SEP_ LIMBO igh2ai
+
+LTS("[Kk]rz")TO("ks") _SEP_ _SEP_ krz2ksh
+
+
+LTS("nce$")TO("ns") _SEP_ _SEP_ LIMBO dance2dans
+LTS("nch")TO("nts") _SEP_  _SEP_ LIMBO lunch
+
+LTS("[Oo]hm$")TO("oom") _SEP_ _SEP_ LIMBO ohm2oom
+
+LTS("[Qq]u([bcdfghjklmnpqrstvwxz])")TO("ku$1") _SEP_ _SEP_ LIMBO quC2kuC
+LTS("[Qq]vi")TO("kvi") _SEP_ _SEP_ LIMBO q2Brörkkvist
+
+LTS("rce")TO("rse") _SEP_  _SEP_ LIMBO rce2rse
+LTS("rch")TO("rts") _SEP_ 0:REGEX("[aeiouy]rch") _SEP_ LIMBO rch2rts
+
+LTS("([Ss])ch")TO("sh") _SEP_ _SEP_ LIMBO sch2sh
+LTS("[Ss]qu")TO("sku") _SEP_ _SEP_ squ2sku
+
+
+LTS("Tch")TO("Tsh") _SEP_ _SEP_ LIMBO tch2tsh
+
+LTS("tzs")TO("ts") _SEP_ _SEP_ LIMBO tzs2ts
+
+LTS("vic")TO("vits") _SEP_  _SEP_ LIMBO slaavinimi
+##################
+# KAKSIKIRJAIMISET
+LTS("bb$")TO("b") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO bb2b
+LTS("bb")TO("b") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("bb[bcdghjklmnpqrstvwxz]") _SEP_ LIMBO bb2b
+
+LTS("^[Cc]e")TO("se") _SEP_  _SEP_ LIMBO Ce2se
+LTS("^[Cc]h")TO("ts") _SEP_  _SEP_ LIMBO Ch2ts
+LTS("^([Cc])i")TO("si") _SEP_  _SEP_ LIMBO ci2si
+LTS("ci")TO("si") _SEP_ 0:-REGEX("ci(i?n|s[st][aä]|lle|l[lt][aä]|[aä])$") _SEP_ LIMBO ci2si
+LTS("ck($|[bcdghjklmnpqrstvwxz])")TO("k$1") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO ck2k
+LTS("ck")TO("kk") _SEP_ _SEP_ LIMBO ck2k rest
+LTS("ct")TO("kt") _SEP_ _SEP_ LIMBO ct2kt
+LTS("[Cc]z")TO("ts") _SEP_  _SEP_ LIMBO cz2ts
+LTS("[Cc]y$")TO("si") _SEP_ _SEP_ LIMBO cy2si
+LTS("cy")TO("ky") _SEP_ _SEP_ LIMBO cy2ky
+LTS("Cy")TO("Sy") _SEP_ _SEP_ LIMBO cy2sy
+
+
+
+LTS("dt")TO("t") _SEP_ 0:REGEX("[aeiouAEIOU][lnr]?dt($|\-|[bcdfghjkmnpqstvwxz]+[aeiouyåäö])") _SEP_ LIMBO dt#2d brandt
+LTS("dz")TO("ds") _SEP_ _SEP_ LIMBO dz2ds tadsikki
+
+LTS("gn($|[bcdfghjklmnpqrstvwxz])")TO("n$1") _SEP_ _SEP_ LIMBO gn2n foreign
+
+LTS("kk$")TO("k") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO kk2k
+LTS("kk")TO("k") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("kk[bcdfghjlmnpqrstvwxz]") _SEP_ LIMBO kk2k
+
+LTS("ph$")TO("f") _SEP_ _SEP_ LIMBO ph2f
+
+LTS("pp$")TO("p") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO pp2p
+LTS("pp")TO("p") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") 0:REGEX("pp[bcdfghjklmnpqrstvwxz]") _SEP_ LIMBO pp2p
+
+LTS("[Qq]u")TO("kv") _SEP_ 0:REGEX("[Qq]u[aeiouy]") _SEP_ LIMBO qu2kv
+LTS("[Qq]v")TO("kv") _SEP_ _SEP_ LIMBO qv2kv
+
+
+
+LTS("ss($|[bcdfghjklmnqprtvwxz])")TO("s$1") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO ss2s
+
+LTS("^[Ss]z")TO("s") _SEP_ _SEP_ LIMBO sz2s
+
+LTS("tt($|[bcdfghjklmnpqrsvwxz])")TO("t$1") _SEP_ 0:REGEX("[AEIOUYÅÄÖaieouyäö]") _SEP_ LIMBO tt2t
+LTS("tz")TO("ts") _SEP_ _SEP_ LIMBO tz2ts
+
+
+LTS("^[Ww]h")TO("v") _SEP_ _SEP_ LIMBO wh2v
+LTS("wl")TO("ul") _SEP_ _SEP_ LIMBO wl2ul
+LTS("wn")TO("un") _SEP_  _SEP_ LIMBO w2v
+
+LTS("Ya")TO("Ja") _SEP_ _SEP_ LIMBO yankee-jenkki
+
+LTS("^[Zz]l")TO("sl") _SEP_ _SEP_ LIMBO zl2sl zloty
+LTS("^[Zz]s")TO("ts") _SEP_ _SEP_ LIMBO zs2ts zsabo
+LTS("^[Zz]w")TO("sv") _SEP_ _SEP_ LIMBO zw2sv zwei
+LTS("zz")TO("ts") _SEP_ _SEP_ LIMBO zz2ts
+
+LTS("^Åh?")TO("oo") _SEP_ 0:REGEX("^Å[bdfghjklmnprstv]") _SEP_ LIMBO Åbo
+LTS("åh")TO("oo") _SEP_ 0:REGEX("åhl") _SEP_ LIMBO åh
+
+#################
+# YKSIKIRJAIMISET
+LTS("[cC]")TO("k") _SEP_  _SEP_ LIMBO c2k
+
+LTS("q$")TO("k") _SEP_ _SEP_ LIMBO q2k nasdaq
+LTS("[Qq]")TO("kv") _SEP_ 0:REGEX("[Qq][aeiouy]") _SEP_ LIMBO q2kv
+
+LTS("[Ww]")TO("v") _SEP_  _SEP_ LIMBO w2v
+
+LTS("[Zz]")TO("ts") _SEP_ _SEP_ LIMBO z2ts
+
+LTS("[Åå]")TO("o") _SEP_  _SEP_ LIMBO å2o
+######################################################
+
+#PARTIAL-REPLACEMENT("-")TO("") _SEP_  0:REGEX("^[A-Z]{3}\-[0-9]{3}$") _SEP_ LIMBO rekkari
+
+LSEQ _SEP_ 0:REGEX("^[A-Z]{3}[0-9]{3}$") _SEP_ N rekkari
+
+
+
+
+LTS("[Ss]ydäme")TO("sydämme") _SEP_  _SEP_ LIMBO sydän
+
+LTS("[Ss]ydämi")TO("sydämmi") _SEP_  _SEP_ LIMBO sydän
+
+LTS("\'s$")TO("s") _SEP_  _SEP_ LIMBO eng poss
+LTS("et\'n$")TO("een") _SEP_  _SEP_ fransmanni
+LTS("t\'n$")TO("tin") _SEP_  _SEP_ fransmanni turvallisesti
+
+XML-ARGUMENT("accent=no") _SEP_ -1:-CASE(GEN) 0:REGEX("^(.*([Kk]ansleri|[Mm]inisteri|[Pp]residentti))$") 1:REGEX("^[A-ZÅÄÖ]")||1:MORPHEME("PROP") _SEP_ pol titteli
+XML-ARGUMENT("accent=no") _SEP_ -1:-CASE(GEN) 0:REGEX("^(.*([Aa]miraali|[Ee]versti|[Kk]apteeni|[Kk]ernaali|[Ll]uutnantti))$") 1:REGEX("^[A-ZÅÄÖ]")||1:MORPHEME("PROP") _SEP_ mil. titteli
+
+XML-ARGUMENT("list=yes") _SEP_  -1:REGEX("^[\.]$")||-1:STRING("<utterance>") 1:STRING(",") 3:REGEX("^(,|ja|tai)$") _SEP_ ARG list
+XML-ARGUMENT("list=yes") _SEP_  -1:STRING(",") -2:XML-ARGUMENT("list=yes") _SEP_ ARG list rec
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING(",") -1:XML-ARGUMENT("list=yes") _SEP_ PUNC listassa ei punkkia
+
+XML-ARGUMENT("list=yes") _SEP_ 1:STRING(",") 3:STRING(",") 5:REGEX("^(,|ja|tai)$") _SEP_ ARG list2
+
+XML-ARGUMENT("list=yes") _SEP_ 1:STRING(",") 3:REGEX("^(,|ja|tai)$") 5:REGEX("^[.:;!?]") _SEP_ ARG list2
+
+
+
+REPLACEMENT(",") _SEP_ 0:STRING(",") -1:SENTENCE(REGEX("^[Ss]ekä$")) 1:STRING("että") _SEP_ PUNC keep me
+REPLACEMENT("[SILENCE]") _SEP_ 0:STRING(",") 1:STRING("että") _SEP_ PUNC but remove me ,2nil
+
+
+XML-TAG("break/") _SEP_ -2:COMMENT(",2nil") _SEP_ LIMBO tauon oikea paikka
+
+#XML-TAG("break/") _SEP_ -1:REGEX("^[,;:]$") _SEP_ add break tags
+
+SAPI4-TAG(pau=200) _SEP_ -2:COMMENT(",2nil") _SEP_ LIMBO tauon oikea paikka
+
+
+XML-TAG("break/") _SEP_ 0:STRING("(") _SEP_ XML break
+
+REPLACEMENT("suluissa") _SEP_ 0:STRING("(") 2:STRING(")") _SEP_ sulku
+REPLACEMENT("[SILENCE]") _SEP_ -2:STRING("(") 0:STRING(")") _SEP_ sulku
+ 
+REPLACEMENT("sulku auki") _SEP_ 0:STRING("(") _SEP_ CHAR sulku
+
+XML-TAG("break/") _SEP_ 0:STRING(")") _SEP_ XML break
+REPLACEMENT("sulku kiinni") _SEP_ 0:STRING(")") _SEP_ CHAR sulku
+XML-TAG("phrase/") _SEP_ -1:COMMENT("CHAR\ssulku") _SEP_ XML break
+
+# SPLIT _SEP_ _SEP_ N split
+
+LSEQ _SEP_ 0:REGEX("^0[0-9]+$") _SEP_ N nolla-alkuinen
+
+LSEQ _SEP_ 0:REGEX("^[A-Z0-9]*[A-Z][A-Z0-9]*(:[a-zåäö]+)?$") _SEP_ ABBR kirjain kerrallaan
+
+
+LSEQ _SEP_ 0:REGEX("^[A-ZÅÄÖa-zåäö](:[a-zåäö]+)?$") _SEP_ N yksikirjaimiset
+
+
+LSEQ _SEP_ 0:REGEX("^[bcdfghjklmnpqrstvxzBCDFGHJKLMNPQRSTVWXZ]+(:[a-zåäö]+)?$") _SEP_ N clyhenne
+
+LSEQ _SEP_ 0:REGEX("^[aeiouyåäöAEIOUYÄÖÅ]+:[a-zåäö]+$") _SEP_ N vlyhenne
+LSEQ _SEP_ 0:REGEX("^[A-ZÅÄÖA-ZÅÄÖ](:[a-zåäö]+)?$") _SEP_ N kaksikirjaimiset
+LSEQ _SEP_ 0:REGEX("^[AEIOUYÄÖÅ]{3,}$") _SEP_ N vlyhenne2
+
+LSEQ _SEP_ 0:REGEX("^[bcdfghjklmnpqrstvxzBCDFGHJKLMNPQRSTVWXZ]+[0-9]+$") _SEP_ N ctl160
+
+#LSEQ() _SEP_ _SEP_ ABBR kirjain kerrallaan luku
+
+EMAIL() _SEP_  _SEP_ N email PhrasifyEmail
+URL() _SEP_  _SEP_ N url
+#EOF
+
+# siltä varalta, ettei --force -optiota käytetä: pelkkä <
+# saa XML-moodin sekoamaan, joten
+REPLACEMENT("pienempi kuin") _SEP_ 0:STRING("<") _SEP_ CHAR snadi
+
+

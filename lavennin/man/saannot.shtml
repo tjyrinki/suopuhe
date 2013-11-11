@@ -1,0 +1,623 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML>
+ <HEAD>
+    <TITLE>Laventimen sääntötiedostot</TITLE>
+    <META http-equiv="Content-Type" content="text/html">
+    <LINK rel="stylesheet" type="text/css" href="http://www.ling.helsinki.fi/suopuhe/style.css">
+    <META http-equiv="Content-Type" content="text/html">
+    <META name="author" content="Nicholas Volk">
+ </HEAD>
+<body>
+
+<p><small>
+<a href="asennus.shtml">Laventimen asennusohje</a><br>
+<a href="kaytto.shtml">Laventimen käyttöohje</a><br>
+<a href="funktio.shtml">Laventimen funktioiden kuvaukset</a>
+</small></p>
+
+<p>
+Sääntötiedostot sijaitsevat ohjelman data-hakemistossa.
+Tiedostojen nimet ovat muotoa kieli_tiedostonnimi.txt, jossa
+"kieli" on ISO639-2/T -standarin mukainen nimitys kielelle
+(suomi on "fin"). Standardiin voi tutustua osoitteessa
+<tt><a href="http://lcweb.loc.gov/standards/iso639-2/englangn_ascii.html">http://lcweb.loc.gov/standards/iso639-2/englangn_ascii.html</a></tt>.
+Suomen säännöstö on seuraavanlainen:
+</p>
+<pre>
+fin_kongruoivat_lyhenteet.txt
+fin_kongruoivat_sanat.txt
+fin_lavennussaannot.txt
+fin_luvut.txt
+fin_merkit.txt
+fin_yleissanasto.txt
+</pre>
+
+
+
+<h1>Lavennussäännöt</h1>
+
+
+<p>
+ Tällä sivulla kuvataan Laventimen lavennussäännöt pääpiirteittäin.
+ Yksintyiskohtaisemmin ne kuvataan näillä näkymin loppuvuodesta 2003
+ ilmestyvässä gradussa, joka linkitetään tänne jahka ollaan siinä
+ vaiheessa. Samaten Laventimen toiminnasta sanomalehtitekstin kanssa
+ ilmestyvä evaluaatio linkitettäneen joskus näille sivuille.
+</p>
+
+<p>
+Tiedosto <tt>data/fin_lavennussaannot</tt> sisältää ohjelman käyttämät
+lavennussäännöt. Kukin sääntö on muotoa
+</p>
+<pre>
+TYYPPI _SEP_ RAJOITE* _SEP_ KOMMENTTI
+</pre>
+<p>
+Säännöt ovat siis irrallaan ohjelmasta,
+joten valistunut käyttäjä voi halutessa lisätä, poistaa ja muokata
+lavennussääntöjä.
+</p>
+<p>
+<tt>*</tt> viittaa säännölisten lausekkeiden Kleenen tähteen, eli sääntöjä on
+0 tai enemmän. <tt>_SEP_</tt> on osien välillä käytetty <em>välilyönnein
+ympäröity</em> erotin. Jos tyyppi on halutun kaltainen merkkijono
+ja ympäristöä valikoivat rajoitteet täyttyvät, lavennetaan se
+tyypin mukaisella tavalla ja varustetaan kommentilla.
+</p>
+
+<p>
+Kukin <tt>RAJOITE</tt> on muotoa <tt>ETÄISYYS:EHTO</tt>, jossa
+<tt>ETÄISYYS</tt> kertoo tarkasteltavan ehdon etäisyyden lavennettavaan
+sanaan (tokeniin) nähden. 
+Negatiivinen arvo viittaa lavennettavaa sanaa (tokenia) edeltävään
+sanaan (tokeniin) ja positiivinen arvo (ilman <tt>+</tt>-merkkiä) lavennettavan
+sanan (tokenin) perässä tulevaan sanaan (tokeniin). <a href="#ehto">Varsinaiset EHTO-osat</a>
+on kuvattu alempana.
+</p>
+
+<p>
+<tt>KOMMENTTI</tt> kertoo miksi lavennus on tehty. 
+XML-tulosteessa tieto lisätään kommenttina myös tulostettavaan
+XML-dokumenttiin. Ensisijaisesti kommenttia käytetään debuggaustarkoituksiin,
+mutta sille on kehittynyt myös muita tehtäviä. Aikaisemmin lavennetun sanan
+kommenttiin voi viitata <a href="#comment"><tt>COMMENT</tt></a>-ehdolla.
+Lisäksi kommentin avulla voi määrittää XML-tulostuksessa 
+sanan sanaluokan ja lisätä tauotusta ohjaavat tagit
+sanan (tokenin) sisälle, esimerkiksi puhelinnumerossa.
+Nämä omainasuudet kuvataan tarkemmin loppuvuodesta 2003 (toivottavasti)
+tulevassa gradussa.
+</p>
+
+
+<h2>Tyyppi</h2>
+
+<p>
+<a name="agree-abbr"></a><tt>AGREE-ABBR()</tt> tunnistaa ja laventaa
+kongruoivat lyhenteet. Lyhenteet on listattu tiedostossa
+<a href="#fin_kongruoivat_lyhenteet"><tt>fin_kongruoivat_lyhenteet</tt></a>
+ja talletettu globaaliin hash-taulukkoon <tt>%agree_abbr</tt>.
+</p>
+
+<p>
+<a name="count-abbr"></a><tt>COUNT-ABBR()</tt> tunnistaa ja laventaa
+mittayksikkölyhenteet. Lyhenteet ja niiden pitkät muodot on listattu funktiossa
+<a href="funktio.shtml#mittalyhenne">mittalyhenne</a>.
+</p>
+<p>
+<a name="dd"></a><tt>DD()</tt> tunnistaa ja laventaa päivämäärän.
+</p>
+
+<p>
+<a name="ddmm"></a><tt>DDMM()</tt> tunnistaa ja laventaa päivämäärän ja 
+kuukauden. Kuukauden laventaminen numerona tai sanana (ensimmäistä vs. tammikuuta) riippuu globaalin muuttujan <tt>$kuunum</tt> arvosta (0=sana ja 1=numero).
+</p>
+
+<p>
+<a name="ddmmyy"></a><tt>DDMMYY()</tt> tunnistaa ja laventaa päivämäärän,
+kuukauden ja vuosiluvun. Kuukauden laventaminen numerona tai sanana (ensimmäistä vs. tammikuuta) riippuu globaalin muuttujan <tt>$kuunum</tt> arvosta (0=sana ja 1=numero).
+</p>
+
+<p>
+<a name="digit"></a><tt>DIGIT()</tt> tunnistaa ja laventaa yksittäisistä
+numeroista koostuvan lukujonon. Vain vain viimeinen numero saa
+mahdollisen sijamuodon "Nokia 3210:n" =&gt; "Nokia kolme-kaksi-yksi-nollan",
+</p>
+
+<p>
+<a name="email"></a><tt>EMAIL()</tt> tunnistaa ja laventaa sähköpostiosoitteet.
+</p>
+
+<p>
+<a name="int"></a><tt>INT()</tt> tunnistaa ja laventaa kokonaisluvut.
+Luku saa alkaa merkeillä <tt>+ - ±</tt>. Jos näitä ei halua mukaan,
+pitää kirjoittaa ehto <tt>0:REGEX("^[1-9]")</tt> (tai vastaava).
+</p>
+
+<p>
+<a name="lseq"></a><tt>LSEQ()</tt> tunnistaa ja laventaa lyhennetyyppisiä
+kirjain/merkkiryppäitö.
+</p>
+
+<p>
+<a name="lts"></a><tt>LTS("<em>old_string</em>")TO("<em>new_string</em>")</tt>
+tunnistaa ensin onko tarkkailtava merkkijono sana. Jos on niin,
+korvataan kaikki <tt>old_string</tt>-esiintymät 
+<tt>new_string</tt>-esiintymillä Perlin <tt>s/old_string/new_string/g;</tt>
+käskyllä. Huonosti nimetty, oikeastaan kyseessä <em>grapheme-to-grapheme</em>-konversiosta.
+</p>
+
+<p>
+<a name="num"></a><tt>NUM()</tt> tunnistaa ja laventaa kokonais- ja desimaaliluvut.
+Luku saa alkaa merkeillä <tt>+ - ±</tt>. Jos näitä ei halua mukaan,
+pitää kirjoittaa ehto <tt>0:REGEX("^[0-9]")</tt> (tai vastaava).
+</p>
+
+<p>
+<a name="num-suffix1"></a><tt>NUM-SUFFIX1()</tt> on suomea varten
+tehty erikoissääntö, joka huolehtii <em>luku-sana</em> yhdistelmistä.
+Funktioon on listattu joukko yhdistelmiä, joissa numero ei aukeakaan
+nominatiivissa, esimerkiksi <em>3-pesä</em> lavennetaan muotoon
+<em>kolmospesä</em>. Pitäisi ehkä siirtää poikkeukset 
+<a href="partial_replacement">PARTIAL-REPLACEMENT</a>-funktion alle...
+</p>
+
+<p>
+<a name="ord"></a><tt>ORD()</tt> tunnistaa ja laventaa järjestysluvut.
+</p>
+
+<p>
+<a name="partial_replacement"></a><tt>PARTIAL_REPLACEMENT("<em>old_string</em>")TO("<em>new_string</em>")</tt>
+toimii samoin kuin <a href="#lts">LTS</a>, mutta sille kelpaa mikä
+tahansa merkkijono, eli merkkijonon ei tarvitse olla nimenomaisesti sana.
+</p>
+
+<p>
+<a name="replacement"></a><tt>REPLACEMENT("<em>new_string</em>")</tt>
+Korvaa sanan argumentillaan, jos ehdot täyttyvät.
+</p>
+
+<p>
+<a name="roman"></a><tt>ROMAN()</tt> tunnistaa ja laventaa roomalaiset
+numerot.
+</p>
+
+<p>
+<a name="sapi4"></a><tt>SAPI4-TAG(<em>tag-text</em>)</tt> toimii vain
+<tt>sapi4</tt>-moodissa. Lisää halutun tagin tarkasteltavan sanan
+eteen. Jos tageja lisätään useampia, niin viimeisin tulee lähimmäksi
+sanaa. Kyseessä on siis pieni tuki Microsoftin SAPI:n nelosversiolle,
+mutta <a href="http://www.ling.helsinki.fi/suopuhe/sapi4.shtml">lue kommenttini SAPI:sta</a>..
+</p>
+
+<p>
+<a name="time"></a><tt>TIME()</tt> tunnistaa ja laventaa kellonajat.
+Ks. <a href="funktio.shtml#onko_kellonaika">onko_kellonaika</a>-funktio.
+</p>
+
+<p>
+<a name="url"></a><tt>URL()</tt> tunnistaa ja <a href="funktio.shtml#lavenna_url">laventaa</a> URLit.
+</p>
+
+<p>
+<a name="xml-argument"></a><tt>XML-ARGUMENT(<em>argumentti</em>)</tt> lisää
+ehtojen toteutuessa syötteenä saadun argumentin merkkijonoa
+ympäröivän <tt>token</tt>-tagin argumentiksi. Toimii vain suopuhe-moodissa
+</p>
+
+<p>
+<a name="xml-tag"></a><tt>XML-TAG(<em>tagi</em>)</tt> lisää
+ehtojen toteutuessa syötteenä saadun tagin merkkijonoa
+ympäröivän <tt>token</tt>-tagin eteen. Toimii vain suopuhe-moodissa,
+ja mahdollisesti myöhemmin lisättävissä XML-moodeissa (kuten SABLE).
+</p>
+
+<p>
+<a name="year"></a><tt>YEAR()</tt> tunnistaa ja laventaa vuosiluvun.
+(Esim. englannissahan vuosiluvut luetaan eri tavalla kuin suomessa.)
+</p>
+
+
+<p>
+Jos ohjelma on käynnistetty <tt>force</tt>-optiolla, niin 
+tällöin sääntöjen laventamatta jättämät lausumiskelvottomat
+merkkijonot lavennetaan kovakoodatuilla rautalankasäännöillä.
+</p>
+
+
+
+
+<h3>Tyyppien parametrit</h3>
+<p>
+Useimpiin tyyppeihin voi määrittää lisäparametreja, ainoat
+poikkeukset ovat 
+<tt><a href="#lts">LTS</a></tt>,
+<tt><a href="#partial-replacement">PARTIAL-REPLACEMENT</a></tt>, 
+<tt><a href="#replacement">REPLACEMENT</a></tt>, 
+<tt><a href="#sapi4">SAPI4</a></tt>, 
+<tt><a href="#xml-argument">XML-ARGUMENT</a></tt> ja
+<tt><a href="#xml-tag">XML-TAG</a></tt>.
+
+Näiden argumentit on varattu muihin tarkoituksiin.
+Myös osassa muita sääntöjä argumentit eivät ole semanttisesti mielekkäitä;
+tällöin ne jätetään huomioimatta (ESIMERKKI!).
+</p>
+<h4>Sallitut parametrit</h4>
+<p>
+<b><tt>case</tt></b> saa arvokseen kolmikirjaimisen
+sijamuodon tunnuksen <a href="funktio.shtml#sijamuoto">tunnuksen</a>,
+esim. <tt>case=GEN</tt> aiheuttaa lavennettavan aukaisun genetiivissä.
+Lisäksi arvo voi myös olla <tt>HEAD</tt>, jolloin lavennettava kongruoi 
+pääsanansa kanssa. (Pääsanan voi  määrittää joko 
+<tt><a href="#agree">AGREE</a>-</tt> tai 
+<tt><a href="#agree-case">AGREE-CASE</a></tt>-funktiolla.)
+</p>
+<p>
+<b><tt>num</tt></b> saa arvokseen joko monikon <tt>PL</tt>,
+yksikön <tt>SG</tt> tai 
+<tt><a href="#agree-case">AGREE-CASE</a></tt>-funktiossa määritetyn
+pääsanansa luvun <tt>HEAD</tt>-arvolla.
+</p>
+
+<p>
+<b><tt>numtype</tt></b> kertoo onko avataanko luku järjestyslukuna
+vai peruslukuna. Esimerkiksi kuninkaiden yhteydessä roomalaiset luvut
+lavennetaan järjestyslukuina, mutta luentosalin yhteyssä luku
+luetaan peruslukuna.
+</p>
+
+<p>
+<b><tt>recursion</tt></b> kertoo onko lavennettava numero rekursiivinen
+eli kongruoivatko myös numero kanssa rinnastussuhteessa olevat numerot
+samoilla tiedoilla. Mahdolliset arvot <tt>left</tt>, <tt>right</tt>
+ja <tt>no</tt> (oletusarvo). Arvo kertoo mistä suunnasta lähdetään
+etsimään rinnastuksia. LISÄÄ ESIMERKKI.
+</p>
+
+<a name="ehto"></a><h2>Ehdot</h2>
+<p>
+Ehtoformalismi on muotoa etäisyys sanasta: negatiiviset arvot ovat
+sanaa edeltäviä sanoja, 0 on sana itse, ja positiiviset kokonaisluvut ovat
+perässä tulevia merkkijonoja. 
+Etäisyyden perään tulee kaksoinpiste
+<tt>:</tt> ja varsinainen ehto, esim.:
+</p>
+<pre>
+1:REGEX("^(Suomen|Saksan)$")
+</pre>
+<p>
+Ehto voi olla myös negatiivinen, jolloin se onnistuu epäonnistuessaan
+ja päinvastoin. Esimerkiksi seuraavassa tapauksessa seuraava sana ei
+saa olla genetiivi:
+<pre>
+1:-CASE(GEN)
+</pre>
+<p>
+Ehto joko onnistuu tai epäonnistuu, jos ehto epäonnistuu, niin myös
+koko lavennussääntöyritys ko. sanalle ko. säännöllä epäonnistuu,
+poikkeusena looginen TAI-operaatio, jolloin operaation keulan epäonnistuessa
+yritetään vielä saada operaation loppuosa onnistumaan. Looginen JA-operaatio
+toteuttuu implisiittisesti, joten sitä ei ole tarvinnyt määrittää.
+TAI-operaation merkintätapa on <tt>||</tt>:
+</p>
+<pre>
+1:POS(COORD)||1:POS(CC)
+</pre>
+<p>
+Loogisten operaattoreiden tuki on puutteellinen, esimerkiksi XOR-operaatiota
+ei pystytä kuvaamaan yhdellä säännöllä, mutta en ole tavannut todellista
+esimerkkiä, johon formalismi ei olisi riittänyt.
+</p>
+
+<dl>
+<dt><tt>AGREE()</tt></dt>
+<dd>Onnistuu, jos halutulta sanalta voi periä luvun ja sijan. Vain yksi <tt>AGREE()</tt> tai <tt>AGREE-CASE()</tt> per sääntö! Sääntötyypin parametreina tulisi olla <tt>case=HEAD</tt> ja <tt>num=HEAD</tt></dd>
+
+<dt><tt>AGREE-CASE()</tt></dt>
+<dd>Onnistuu, jos halutulta sanalta voi periä sijan. Vain yksi <tt>AGREE()</tt> tai <tt>AGREE-CASE()</tt> per sääntö! Sääntötyypin parametrina tulisi olla <tt>case=HEAD</tt></dd>
+
+<dt><tt>AGREEMENT-WORD()</tt></dt>
+<dd>Onnistuu, jos sana on tunnistettu mittalyhenne tai <a href="#ksanat">kongruoivien sanojen listasta</a> löytyvä sana. 
+Perii sijamuodon pääsänaltaan. Ei saa esiintyä
+samassa säännössä <tt>AGREE()</tt>- tai <tt>AGREE-CASE()</tt>-ehdon kanssa.
+</dd>
+
+<dt><tt>BASE("<em>merkkijono</em>")</tt></dt>
+<dd>Onnistuu, jos argumenttimerkkijono ja sanan perusmuoto ovat identtiset.</dd>
+<dt><tt>BASE-REGEX("<em>lauseke</em>")</tt></dt>
+<dd>
+ Tutkii osuuko annettu lauseke olla tutkittvan saneen perusmuotoon.
+ Osuman tulee olla eksakti eli
+ merkkijonon alku ('<tt>^</tt>') ja loppu ('<tt>$</tt>') oletetaan
+ implisiittisesti eli niitä ei tarvitse/voi ilmoittaa.  
+ Voidaan esimerkiksi kirjoittaa <tt>BASE-REGEX(".*ministeri")</tt>,
+ joka viittaa ministeri-sanan lisäksi mm. ulkoministeri-sanaan,
+ muttei ministeriö-sanan muotohin.
+</dd>
+<dt><tt>CASE(<em>string</em>)</tt></dt>
+<dd>Tutkii löytyykö annettu merkkijono sanan tulkinnasta. Merkkijono on <a href="funktio.shtml#sijamuoto">kolmikirjaiminen sijamuodon tunnus</a>.</dd>
+
+
+<dt><tt><a name="COMMENT">COMMENT</a>(<em>string</em>)</tt></dt>
+<dd>Onnistuu, jos annettu merkkijono <em>string</em> osuu aikaisemmin 
+lavennetun sanan kommenttiin. (Lisäksi <tt>ETÄISYYS</tt> &lt;= 0).</dd>
+
+<dt><tt>DD</tt></dt>
+<dt><tt>DDMM</tt></dt>
+<dt><tt>DDMMYY</tt></dt>
+<dd>Onnistuvat jos ulkoiset ehdot täyttyvät. <a href="#dd">Katso vastaavien
+tyyppien kuvaukset</a>.</dd>
+
+<dt><tt>MORPHEME(<em>string</em>)</tt></dt>
+<dd>Tutkii löytyykö annettu merkkijono sanan morfologisesta tulkinnasta,
+    morfologinen tulkinta on lingvistisen apuvälinen antama tulkinta
+    sellaisenaan.</dd>
+
+<dt><tt>NUM(<em>string</em>)</tt></dt>
+<dd>Tutkii löytyykö annettu merkkijono sanan morfoltulkinnasta.</dd>
+
+<dt>NUMBER</dt>
+<dd>Tutkii, onko tarkasteltava sana numero...</dd>
+
+<dt>POS(<em>string</em>)</dt>
+<dd>Tutkii löytyykö annettu merkkijono sanan tulkinnasta.</dd>
+
+<dt>REGEX(<em>lauseke</em>)</dt>
+<dd>Onnistuu, jos annettu lauseke sopii tarkasteltavaan merkkijonoon
+(pintamuotoon tai tarvittaessa lavennettuun muotoon).</dd>
+
+<dt>SENTENCE(<em>ehto</em>)</dt>
+<dd>Aloittaa annetusta kohdasta, ja etenee siitä 0-kohdasta
+poispäin, kunnes lause päättyy tai ikkuna loppuu. Yrittää
+soveltaa annettua sääntöä kuhunkin tokeniin vuorollaan, kunnes onnistuu.
+</dd>
+
+<dt>STRING(<em>merkkijono</em>)</dt>
+<dd>Testaa vastaako annettu merkkijono täydellisesti tarkasteltavan
+merkkijonon pintamuotoa (sama kuin BASE perusmuodolle).</dd>
+
+<dt>SYNTAX(<em>lauseke</em>)</dt>
+<dd>Toimii tällä hetkellä vain FDG-jäsentimellä, sillä se on ainoa
+käytetty syntaktista jäsennystä tekevä ohjelma.
+Katsoo löytyykö annettu lauseke sanan syntaktisista tiedoista.
+</dd>
+
+<dt>XML-ARGUMENT("<em>lauseke</em>")</dt>
+<dd>Tutkii onko aiemmin käsitellylle merkkijonolle annettu
+lausekkeessa määritettyä XML-argumenttia. Käytetty tauon siirrossa
+että-sanan edeltä sen perään. </dd>
+
+<dt>XML-ARGUMENT("<em>lauseke</em>")</dt>
+<dd>Tutkii onko aiemmin käsitellylle merkkijonolle annettu
+lausekkeessa määritettyä XML-tagia. Ei koskaan testattu.</dd>
+
+<dt>YEAR</dt>
+<dd>Ks. <a href="funktio.shtml#onko_vuosi">onko_vuosi</a>-funktio</dd>
+
+</dl>
+<h2>Kommentit</h2>
+<p>
+Onnistunut lavennus liittää saneeseen tiedon, mikä lavennussääntö siihen osui.
+Alunperin tietoa käytettiin vain debuggaustarkoituksiin, mutta sille
+on kehittynyt myöhemmin muutamia hyödyllisiä uusiokäyttöjä:
+</p>
+<ol>
+<li>
+ Tyypillisesti onnistuneen lavennuksen jälkeen siirrytään laventamaan 
+ seuraavaa sanaa. Jos kommentti sisältää merkkijonon <tt>LIMBO</tt>,
+ näin ei tehdä, vaan jälkellä olevat lavennussäännöt yrittävät nekin
+ laventaa sanaa. Tätä hyödynnetään esimerkiksi muutettaessa vierasperäisä
+ sanoja syntikalle lausumiskelpoisiksi:<br>
+  <tt>Schultz</tt> =&gt; <tt>Shultz</tt> =&gt; <tt>Shults</tt><br><br>
+</li>
+<li>
+  Tietyillä kommenteilla voi antaa intonaatiovihjeitä suopuhemoodille.<br><br>
+</li>
+<li>
+  Lavennusehdon <tt><a href="#COMMENT">COMMENT</a></tt>-avulla
+  voi tutkia miksi joku sana lavennettiin niin kuin lavennettiin.
+  Tämän avulla säännöt voivat ruokkia toisiaan:
+<pre>
+REPLACEMENT("filosofian") _SEP_ 0:REGEX("^[Ff]il\.$") 1:REGEX("(kand|[Ll]is|[mM]aist|toht|tri|yo)\.?") _SEP_ N OPPIAINE
+
+REPLACEMENT("kandidaatti") _SEP_ 0:STRING("kand.") -1:COMMENT("OPPIAINE") _SEP_ N OPPIARVO
+</pre></li>
+</ol>
+
+
+
+<h1>Sanasto</h1>
+
+<a name="ksanat"></a>
+<h2>Kongruoivien sanojen lista</h2>
+<p>
+Tiedosto <tt>fin_kongruoivat_sanat.txt</tt> sisältää listan sanoista,
+joita edeltävä numeroilmaus hyvin suurella todennäköisyydellä kongruoi
+annetun sanan kanssa.
+Kullakin rivillä on vain kongruoivat sanan perusmuoto. Sanat ovat
+aakkosjärjestyksessä selvyyden, ei (enää) pakon, vuoksi. Esimerkkejä:
+Jos yleissanastosta löytyy ko. sanalla syvämuoto, osaa laventimen
+raakatekstimoodikin kongruoida nöiden sanojen kanssa.
+</p>
+<pre>
+aari
+ampeeri
+...
+zloty
+ääni
+</pre>
+
+
+
+<a name="#fin_kongruoivat_lyhenteet"></a>
+<h2>Kongruoivien lyhenteiden lista</h2>
+<p>
+Tiedosto <tt>fin_kongruoivat_lyhenteet.txt</tt>
+</p>
+<p>
+Sisältää listan suomenkielisistä lyhenteistä, jotka voivat kongruoida
+pääsanansa kanssa. Kukin rivi on muotoa lyhenne+TAB+syvämuoto, esim.:
+</p>
+<pre>
+ko.	kyseessä oleva
+lut.	luterilaiS
+nk.	niin kutsutTu
+</pre>
+<p>
+Syvämuoto annetaan vain taipuvasta osasta eli viimeisestä sanasta
+('S' on -nen -pääte ja 'T' on t:n astevaihtelun tunnus.
+</p>
+
+<h2>Numeroilmausten syvämuodot</h2>
+<p>
+Tiedosto on muotoa numerosanan syv?muoto per rivi.
+ Numeroita varten on oma tiedostonsa, koska n?it? kutsutaan numerossa
+muita sanoja useammin. Numeroille tehd??n taulukko, johon talletetaan
+pintamuodot eri sijoissa, josta ne saadaan haettua nopeasti, eik? 
+niit? tarvitse tehd? kerta toisensa j?lkeen. Tiedostoa ei saa muuttaa. 
+</p>
+
+<a name="#merkki"></a><h2>Merkkien nimet</h2>
+
+<p> 
+Suomenkieliset merkkien taipumaatomat nimet l?ytyv?t tiedostosta 
+<tt>fin_merkit.txt</tt>. 
+Tiedosto on seuraavaa muotoa: kullakin rivill? on ensin yksi merkki, 
+sitten sarkain-n?pp?in (TAB) erottimena ja lopuksi merkin 
+kirjoitettu muoto. Esimerkiksi: 
+</p> 
+<pre> 
+[           hakasulku auki 
+</pre> 
+<p> 
+Lukuja ja yksitt?isi? sanastossa ei ole, sill? ne voivat taipua. 
+Ne l?ytyv?t yleissanastosta (4.7) 
+Tiedostoon on tallettu joukko merkkej? ja niiden aukikirjoitettuja 
+muotoja. Merkkien nimet olen valittu oman makuni mukaan, mutta 
+kenen tahansa on helppo muuttaa merkit vastaamaan haluamiaan 
+merkkijonoja. 
+</p> 
+
+<h2>Yleissanasto</h2>
+
+<p>
+Yleissanasto on <tt>data/fin_yleissanasto.txt</tt>.
+Tiedosto on muotoa peruspintamuoto, sarkain-näppäin, syvämuoto:
+</p>
+<pre>
+prosentti       prosentTi
+</pre>
+<p>
+Yleissanasto syntyi kun lukuja varten tehtyä sanoja alettiin laajentaa
+kattamaan myös ne taivutusilmiöt, joita ei lukujen yhteydessä esiinny.
+Kaikkia suomen taivutusmuunnoksia säännöstöllä ei kuitenkaan
+toistaiseksi voi kuvata, mutta yleisimmät taivukset toimivat hyvin.
+Tiedoston avulla voidaan generoida sanastossa olevien sanojen pintamuodot.
+Tiedosto sisältää paljon testauksessa käytettyjä sanoja, joita
+ei liene tarpeellista generoida koskaan lavennuksen yhteydessä.
+</p>
+
+<h3>Syvämuodoissa käytetyt merkinnät</h3>
+<p>
+Sanamuotoja voi testata käynnistämällä <tt>lävennin</tt>-ohjelma
+seuraavalla komentoriviparametrilla:
+</p>
+<pre>
+unix_prompt$ <b>lavennin --mode=form</b>
+</pre>
+
+<p>
+Pienet kirjaimet ovat omat itsensä.
+Isot kirjaimet tarkoittavat, että jonkinlaista vaihtelua esiintyy.
+</p>
+
+<pre>
+A    Vokaaliharmonian merkki, realisoituu joko 'a'- tai 'ä'-merkkinä.
+     Merkkiä ei tarvinne opetella.
+
+B    Yksi s-loppuisten sanojen merkeistä. Käytetään mm. sanassa
+     "varas" (varCaB)
+
+C    k:n astevaihtelu
+
+D    käytettään joidenkin kirjanten yhteydessä aiheuttamaan
+     konsonantin pitenemistä, vrt. "äs" vs. "ässän".
+     Ei tarvinne opetella.
+     
+E    tavallisesti huolehtii i/e-vaihtelusta, esim nuoli-nuolen (nuolE);
+     käytetään myös ilmaisemaan kahdentumista e-loppuisissa sanoissa
+     kuten "puolue" vs "puolueen" (puolueE).
+
+F    laitetaan numeron vartalon perään 
+     muuttaa numeron perusluvusta järjestysluvuksi.
+     sanat "ensimmäinen" ja "toinen" ovat poikkeuksia tästä.
+     Ei tarvinne opetella.
+
+G    Käytetään osana genetiivin tunnusta "Gn".
+     Ei tarvita leksikon laajentamisen yhteydessä.
+
+H    Osa illatiivin tunnusta. Ei tarvita leksikon laajentamisen yhteydessä. 
+	     
+I    Monikon tunnus, ei tarvita leksikon laajetamiseen.
+
+J    Huolehtii "poika"- ja "aika"-sanojen poikkeuksellisesta
+     taivutuksesta. Tarkoitus poistaa tästä käytöstä joskus.
+
+K    realisoituu joko 'K' tai 'H'-kirjaimena. Harvinainen, esiintyy
+     pareissa yksi/yhden. Kielihistoriallisesti se on 'H' joka
+     vaihtelee, ei 'K'-
+
+L    Äärimmäisen harvinainen, käytetään l-loppuisissa kotoperäisissä
+     sanoissa, kuten kyynel (kyyneL). Sanoja taitaa olla kokonaista
+     12 kappaletta kielessä (askel, kannel, kyynel, ommel...)
+
+M    huolehtii sanan kymmenen poikkeuksellisesta taivutuksesta,
+     tarkoitus poistaa (yhdistää S:ään parin säännön avulla)
+
+N    Käytetään numeroissa 7, 8 ja 9. Ei tarvitse opetella.
+
+O    Käytetään kuvaamaan sanan lopussa olevaa n/m vaihtelua
+     (puhelin/puhelimen). Käytetään myös sanassa vasen/vasemman,
+     mutta tämä taitaa olla pitkälti rautalankaa
+
+P    P:n astevaihtelu
+
+Q    Osa partitiivin tunnusta "QA".
+
+R    käytetään ri-morfeemin omaavissa sanoissa, sillä taivutus eroaa
+     muuten samannäköisistä sanoista monikon partitiivin osalta:
+     muuri-lääkäri: muureja-lääkärejä (lääkäRi).
+
+     Käytetään myös taR-morfeemissa, kuningatar (kuningatTar), ja
+     muissa r-loppuisissa sanoissa , manner (manTeR).
+
+S    nen-loppuiset sanat: nainen (naiS)
+
+T    t:n astevaihtelu, joko t, d tai 0.
+
+U    määrittelemätön
+
+V    illatiivin vokaali, ei tarvitse opetella
+
+W    määrittelemätön.
+
+X    s-päätteiset sanat kuten varis-variksen (variX)
+
+Y    varattu vokaalisointuparille u/y.
+
+Z    s i:n edessä, muuten noudattaa t:n astevaihtelua:
+     vesi, veden, veteen.
+
+Å    kaira-kairoissa (kairÅ)
+	
+Ä    Määrittelemätön.
+
+Ö    Määrittelemätön.
+  
+</pre>
+
+
+</body>
+</html>
+
+
+

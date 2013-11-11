@@ -1,0 +1,121 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<HTML>
+ <HEAD>
+    <TITLE>NSW-laventimen asennus</TITLE>
+    <META http-equiv="Content-Type" content="text/html, charset=iso-8859-15">
+    <LINK rel="stylesheet" type="text/css" href="http://www.ling.helsinki.fi/suopuhe/style.css">
+    <META http-equiv="Content-Type" content="text/html">
+    <META name="author" content="Nicholas Volk">
+ </HEAD>
+<body>
+<p>
+<a href="http://www.ling.helsinki.fi/suopuhe/">Suopuhe-projekti</a>
+<a href="kaytto.shtml">Käyttöohje</a>
+<a href="saannot.shtml">Sääntötiedostot</a>
+<a href="funktio.shtml">Funktiolista</a>
+</p>
+
+<h1>NSW-laventimen asennus</h1>
+
+<h2>Vaatimukset</h2>
+
+<p>
+<b>Perl-komentotulkki</b> (suositellaan versiota 5.61 tai uudempaa, 
+varhaisemmatkin ainakin 5.0:stä ylöspäin luultavasti toimivat). 
+Ohjelma on siis kirjoitettu Perl-ohjelmointikielellä, joka
+on saatavissa lähes alustalle kuin alustalle. 
+Unixeissa Perl tulee yleensä valmiiksi mukana, mutta tarvittaessa sen
+voi noutaa osoitteesta <a href="http://www.perl.com">http://www.perl.com</a>.
+Windowsiin Perlin voi noutaa osoitteesta
+<a href="http://www.activestate.com/">http://www.activestate.com/</a>.
+MacIntoshien Perl ei ole minulle tuttu, mutta sellainen varmasti löytyy..
+</p>
+
+<p>
+Purkuohjelma, käytännössä vaikka joku seuraavista:
+Unixissa <tt>tar</tt>-käskyn uudemmat versiot,
+Windowsin puolella käsittääkseni mm. WinZip osaa avata tarrattuja ja gzipattuja
+tiedostoja (gzip on periaatteessa sama kuin zip, mutta headerit eroavat
+hieman).
+</p>
+
+<h2>Ohjelman jakelu</h2>
+
+<p>
+Ilmestynee syksyllä 2003.
+Projektia lähellä olevat tahot
+(projektin eri osapuolet, akateemiset sisarprojektit).
+voivat noutaa ohjelman osoitteesta
+<tt><a
+href="http://www.ling.helsinki.fi/suopuhe/limited/">http://www.ling.helsinki.fi/suopuhe/limited/</a></tt>. 
+</p>
+
+
+
+<h2>Asentaminen</h2>
+
+<ol>
+
+  <li>
+  Pura tiedosto haluamaasi hakemistoon. <tt>.tgz</tt>-päätteisen tiedoston
+  voi purkaa Unixissa käskyllä<br><br>
+
+  <tt>tar -zxvf <em>lavennin-$VERSIO.tgz</em></tt><br><br>
+
+   Se tekee työhakemistoon alihakemiston <tt>lavennin/</tt> ja laittaa
+   ohjelmatiedostot sinne. Asennuksen mukana pitäisi tulla seuraavat tiedostot:
+<pre>
+    README.txt
+    bin/  
+    bin/lavennin
+    data/
+    data/fin_kongruoivat_lyhenteet.txt
+    data/fin_kongruoivat_sanat.txt
+    data/fin_lavennussaannot.txt
+    data/fin_luvut.txt
+    data/fin_merkit.txt
+    data/fin_yleissanasto.txt
+    man/
+    man/asennus.shtml
+    man/kaytto.shtml
+    man/saannot.shtml
+    tmp/
+</pre>
+
+
+<p>
+<tt>lavennin</tt> on itse ohjelma. Hakemisto <tt>data/</tt> sisältää
+suomenkieliset lavennussäännöt. Hakemisto <tt>man/</tt> sisältää
+oheita, mm. tämän sivun. Hakemistoon <tt>tmp/</tt> talletetaan toistaiseksi
+ohjelman välitiedostot. Myöhemmin nämä olisi tarkoitus tallettaa Unixeissa
+<tt>/tmp</tt> hakemistoon. Mitenkään mahdotonta ei olisi
+tehdä ohjelmasta versiota, joka ei käyttäisi aputiedostoja,
+mutta sellaista ei enää ehditä tekemään tämän projektin puitteissa.
+</p>
+</li>
+
+<li>
+  Unix: Ohjelma etsii perl-tulkkia osoitteesta <tt>/usr/bin/perl</tt>.
+  Käsky <tt>which perl</tt> kertoo mistä Perl-tulkkisi löytyy.
+  Jos Perl sijaitsee eri paikassa, täytyy tiedoston <tt>bin/lavennin</tt>
+  ensimmäinen rivi muuttaa osoittamaan tähän paikkaan.
+  Tämän voi tehdä esimerkiksi emacs-editorilla.
+</li>
+
+</ol>
+
+<p>
+<a href="kaytto.shtml">Laventimen käyttöohjeeseen</a>.
+</p>
+</p>
+<hr>
+<address>
+<a href="mailto:nvolk@ling.helsinki.fi">Nicholas Volk</a>&nbsp;<br>
+<!--#config timefmt="%d.%m.%Y %T" -->
+<!--#echo var="LAST_MODIFIED" -->&nbsp;
+</address>
+</body>
+</html>
+
+
+
