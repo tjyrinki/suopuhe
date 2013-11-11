@@ -1,0 +1,153 @@
+<!-- 
+
+  SuoPuhe-project speech synthesizer input XML 
+
+ Copyright (c) 2000-2003 Dept. General Linguistics, University of Helsinki
+ All Rights Reserved.
+
+ Author: Nicholas Volk (nvolk@ling.helsinki.fi)
+
+ This program is distributed under Gnu Lesser General Public License (cf. the
+ file LICENSE in distribution).
+ 
+ This program is free software; you can redistribute it and/or modify
+ it under the terms of the GNU Lesser General Public License as published by
+ the Free Software Foundation; either version 2 of the License, or
+ (at your option) any later version.
+ 
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Lesser General Public License for more details.
+
+  TODO: different kinds of accents...
+        break-types need to be reconsidered
+        audio could read stuff from www
+
+  v.0.6.1 -audio tag
+
+  v.0.6.0 -changed "sentence" to "utterance"
+          -initial doubling is done with sayas, not with
+           "triggers_doubling"
+          -token can contain breaks and phrase boundaries
+          -added language
+ 
+  v0.5.1 (nv) minor bug fix + modification on breaks
+  v0.5.0 replaced sayas with original
+         the motivation was that I needed include tags within the tokens:
+
+  <token original="1351"> yksi kolme  <phrase/> viisi yksi  </token>
+ 
+
+  v0.4.5 (Nicholas Volk 18.6.2002)
+  -changed accent from accent            ( yes | no ) "no"
+                    to accent            ( yes | neutral | no ) "neutral" >
+
+  
+  v. 0.4.1 added list-argument to <TOKEN>
+  -sanaluokkatiedot kesken ja muuttuvat varmasti
+  -puhuvalle päälle voi välittää ilme-tiedon ennen sanaa ja sanan jälkeen,
+   ei sanan aikana
+  -mitenköhän kielen generointi 
+  -
+-->
+
+<!ELEMENT suopuhe ((speaker|audio)+)>
+
+
+
+<!ELEMENT speaker ((utterance, pause?)+)>
+<!ATTLIST speaker
+   name   CDATA         #IMPLIED 
+   gender (male|female) #IMPLIED
+   age    (child|youth|adult|aged)       #IMPLIED >
+
+<!-- speaker -->
+<!-- if the name refers to an existing voice, try to use that one, -->
+<!-- instead of the default voice. Otherwise the voice selection -->
+<!-- is primarily based on the sex and secondarily on the age. -->
+<!-- Without only 2 Finnish, you don't get much support for these. -->
+<!-- Jos nimi viittaa johonkin käytettävissä järjestelmässä olevaan -->
+<!-- ääneen, käytetään sitä, muuten oletusääntä. -->
+<!-- Muuten ääni valitaan ensisijaisesti sukupuolen ja toissijaisesti -->
+<!-- iän perusteella. Sitten kun toinen ääni on valmis, -->
+<!-- niin tällä tagilla on oikeasti väliä. -->
+
+<!ELEMENT pause EMPTY>
+<!ATTLIST pause
+   duration CDATA #IMPLIED >
+
+<!-- pause -->
+<!-- A long pause between utterances, not a phrase break  -->
+<!-- Aito pitkän hiljainen hetki, ei hapentankkauskatko keskellä -->
+<!-- lausetta -->
+
+<!ELEMENT audio EMPTY>
+<!ATTLIST audio
+   file CDATA #IMPLIED>
+
+<!ELEMENT utterance ((facial?, token, (break|phrase)?)*, token, facial?)>
+<!ATTLIST utterance 
+    language CDATA "FI"
+    type   (declaration|question|exclamation) "declaration"
+    manner (normal|whisper|creaky|fast)            "normal"
+    tone   (neutral|sarcastic)                "neutral"> 
+
+<!-- utterance -->
+<!-- "type" sets the baseline/intonation type -->
+<!-- "manner" and "tone" are hard to support in diphone-based synthesis -->
+<!-- so they are not really supported yet. -->
+<!-- "type" määrää lauseen baselinen (fujisakin fraasikomponentin jne.), -->
+<!-- "manner" ja "tone" ovat -->
+<!-- vaikeasti tuettavissa difonipohjaisessa synteesissä, mutta ehkä -->
+<!-- ne joskus tekevät jotain... -->
+
+
+<!ELEMENT facial EMPTY>
+<!ATTLIST facial
+   expression            CDATA "plain">
+
+
+<!-- facial -->
+<!-- simplistic talking head support  -->
+<!-- expression tells what expression to use at the end of that word -->
+<!-- expression kertoo millaiseen yleisilmeiseen pitäisi päätyä sanan -->
+<!-- loputtua. Alkeellinen Puhuva pää -tuki. -->
+   
+<!ELEMENT token (#PCDATA|break|phrase)*>
+<!ATTLIST token
+   pos               ( abbr | adjective| adverb | char | conj | foreign | 
+                       hybrid | multiword | name | noun | num | punc | 
+                       unknown | verb ) "unknown"
+   original            CDATA #IMPLIED
+   list              ( yes | no ) "no"
+   accent  ( yes | neutral | no ) "neutral" >
+
+
+<!-- token -->
+<!-- "token" means any string. Punctuation marks have been separated -->
+<!-- from the words they were attached to and now appear as individual -->
+<!-- tokens -->
+<!-- Lisäksi ilmoitetaan onko sana painotettu vai ei lausepainon -->
+<!-- kannalta. --> 
+
+ 
+ <!ELEMENT phrase EMPTY>
+ 
+<!-- marks a phrase break thus supporting fujisaki model -->
+<!-- uuden fraasin alku, signaloi fujisakin mallille        -->
+<!-- phrase-komentoa, voitaneen käyttää myös potentiaalisen -->
+<!-- tauon ilmaisemiseen...                                 --> 
+
+
+ <!ELEMENT break EMPTY>
+ <!ATTLIST break level ( -1 | 0 | 1 | 2 | 3 | 4 ) "1" > 
+
+
+<!-- -1 no break                                                    -->
+<!--  0 no break, phrase boundary; we have a separate phrase though -->
+<!--  1+ breaks with phrase boundaries                              -->
+
+
+
+
