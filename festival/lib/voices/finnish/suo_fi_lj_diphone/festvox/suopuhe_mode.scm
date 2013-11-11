@@ -450,7 +450,7 @@ and suopuhe_vol_type (absolute or relative)."
 	    (suopuhe_setup)
 	    (tts_file file 'suopuhe))
 	  (tts_file file (tts_find_text_mode file auto-text-mode-alist))))
-  (audio_mode 'sync) ;; Hmm this is probably bad
+  ; (audio_mode 'sync) ;; Hmm this is probably bad
   )
 ;; korvaava versio tts-viritelmiin...
 ;(define (utt.play utt)
