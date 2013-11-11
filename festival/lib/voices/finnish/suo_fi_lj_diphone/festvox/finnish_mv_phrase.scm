@@ -351,7 +351,7 @@ Does the list intonation too."
   "(initial_doubling WORD)
 Checks wheter the current WORD can triggers initial doubling on the
 next word or not."
-  (let ((name (downcase (item.name WORD))))
+  (let ((name (if WORD (downcase (item.name WORD) nil))))
     (if (and (item.next WORD) 
 	     (not (word_has_break? WORD))
 	     ;; (not suopuhe) ;; suopuhe-mode deal this personally ???
