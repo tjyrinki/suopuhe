@@ -1,0 +1,695 @@
+Copyright (c) 2000-2003 Yleisen kielitieen laitos, Helsingin yliopisto, ja
+                        Vieraiden kielten laitos, Joensuun yliopisto
+
+This program is distributed under Gnu Lesser General Public License (cf. the
+file LICENSE in distribution).
+ 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+ 
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+
+Tekij‰t: Nicholas Volk (nvolk@ling.helsinki.fi)
+         Martti Vainio
+         muita?
+
+
+2004-10-22: Festival on ohjelman kirjoittamisen ja julkaisun v‰lill‰
+            ehtinyt versiosta 1.4.3 versioon 1.96. Pit‰isi toimia
+            myˆs uusissa versiossa. En ole testannut. (NV)
+
+FESTIVALIN SUOMENKIELISTEN SUOPUHE-ƒƒNTEN KƒYTT÷OHJE
+
+MANUAL FOR FINNISH FESTIVAL VOICES (in Finnish)
+
+Yleisen kielitieteen laitos, Helsingin Yliopisto
+Joensuukin????
+
+Nicholas Volk, others???
+
+
+1. JOHDANTO
+
+T‰ss‰ paperissa esitell‰‰n Festival-puhesynteesij‰rjestelm‰n,
+<http://www.cstr.ed.ac.uk/projects/festival>, p‰‰lle
+Suopuhe-projektissa rakennetut suomenkieliset ‰‰net.
+Tyˆ tehtiin Helsingin yliopiston yleiisen kielitieteen laitoksella
+ja Joensuun yliopiston vieraiden kielten laitoksella.
+Tavallaan t‰m‰ paperi siis laajentaa Festivalin oman dokumentaation
+(<http://www.cstr.ed.ac.uk/projects/festival/manual>) kattamaan
+myˆs suomenkieliset ‰‰net. Kun nyt kirjoitan t‰t‰ omalla ajallani,
+niin mit‰‰n kauhean h‰‰vi‰ dokumentaatiota on turha odottaa
+
+Suomenkielisen ‰‰nen kehitys aloitettin kev‰t-kes‰ll‰ 2000.
+T‰llˆin Festivalista oli k‰ytˆss‰ versio 1.4.1. Nyt
+kev‰ttalvella 2003 on Festivalista olemassa versio 1.4.3.
+Suomenkielinen Festival-laajennus tukee ainakin t‰t‰ uusinta
+versiota, uskoaksemme myˆs aikaisempia versioita ainakin
+versioon 1.4.1 asti. Suomenkielist‰ ‰‰nt‰ tehdess‰ k‰ytettiin omien
+kehitystyˆkalujen lis‰ksi  uusien Festival-‰‰nien tekemiseen tarkoitettua'
+Festvox-tyˆkalupakettia
+<http://www.festvox.org>, k‰yt‰nnˆss‰ paketin versiota 1.2 - 1.6.
+
+Suomenkielisest‰ laajennuksesta  julkaistiin ensimm‰inen "vakaa" 
+versio 5.2.2003 ja  siihen ensimm‰inen bugikorjaus heti seuraavana p‰iv‰n‰.
+Ohjelman lopullista lisenssi‰ ei ole viel‰ t‰t‰ kirjoitettaessa  p‰‰tetty,
+mutta lisenssin pit‰isi ratketa viel‰ t‰m‰n kuun aikana. Joku
+open source -lisenssi sen tulisi kuitenkin olla.
+
+Suomenkieliset ‰‰nitietokannat ja ohjelmat lˆytyv‰t
+Helsingin yliopiston yleisen kielitieteen laitoksen sivulta
+(<http://www.ling.helsinki.fi/suopuhe/>).
+Toistaiseksi projektin tekeleit‰ jaetaan vain projektin osapuolille ja 
+yhteistyˆyliopistoille.
+
+Lis‰ksi projektin yhteydess‰ valmistettiin erillinen tekstin lavennin
+(<http://www-ling.helsinki.fi/suopuhe/lavennin/>), jonka tuottamaa 
+XML-muotoista teksti‰ suomenkielinen j‰rjestelm‰ ymm‰rt‰‰.
+
+
+	Helsingiss‰ 23.5.2003
+
+				Tekij‰t
+
+2. TTY÷NJAOSTA
+
+Ensimm‰inen suomea puhunut versio syntetisaattoristamme taisi olla kokonaan
+Martti Vainion (MV) k‰sialaa. T‰m‰n rungon p‰‰lle rakennetut modulit, kuten
+tavutus, tauotus ja alkukahdennus, ovat kaikkine virheineen p‰‰s‰‰ntˆisesti
+Nicholas Volkin (NV) k‰sialaa. Grafeemi-foneemio -konversios‰‰nnˆt
+perustuivat MV:n aikaisemmin tekemm‰n tyˆhˆn, jotka NV jatkoi projektin 
+yhteydess‰ edelleen. ƒ‰nnekestomalleissa k‰ytettiin ensin MV:n aiemmin
+toisessa yhteydess‰ laskemia keskiarvokestostoja (Ks. MV:n v‰itˆskirja).
+Pian t‰m‰n j‰lkeen Jarmo V‰likangas ja MV rakensivat ensimm‰iset CART-pohjaiset
+‰‰nnekestomallit Festvoxin tyˆkalujen avulla (VIITE), joita k‰ytettiin
+suurimman osan projektin ajasta. Lopullinen versio on Nicholas Volkin 
+Festoxilla rakentamat CART-puut, joissa huomioitiin erityisesti suomen kieless‰
+lingvististen teorioiden mukaan olevia merkitsevi‰ piirteit‰, kuten
+moraa. Lis‰tyt lingvistiset piirteet perustuivat NV:n ja MV:n
+intuitiohin. Festivalin Scheme-tulkin ja lingvistisen datan yhdist‰minen
+oli tietyin osin kivulaista, eik‰ esim. alkukahdennusta saatu
+kunnolla mukaan kestomalliin, vaan se tehd‰‰n tavallaan kestomallista
+huolimatta.
+
+Kestomallin rakentamisessa k‰ytettiin MV:n aikaisemmin 
+(jossain aiemmassa projektissa(?)) nauhoittamaa n. 700 lauseen puhetietokantaa.
+Kaikki intonaatiomallit, mukaan lukien valituksi tullut Fujisakin malli,
+olivat MV:n kirjoittamia, NV tosin on muokannut niit‰ ja
+intonaatiobugit ovat yleens‰ h‰nen syyt‰‰n :)
+T‰m‰ manuaali ja virheet koodissa ovat kaikki todenn‰kˆisesti
+Nicholas Volkin kirjoittamia.
+
+3. MODULIT
+
+Syntesoinnin eri osavaiheet on jaettu moduleihin. Kukin moduli
+huolehtii omasta kokonaisuudestaan ja moduleita on suhteellisen
+helppo korvata kesken‰‰n. Festivalin tiedostot festival/lib/synthesis.scm
+m‰‰ritt‰‰ tavallisen puhunnokset rakenteen seuraavasti:
+
+(defUttType Text
+  (Initialize utt)
+  (Text utt)
+  (Token_POS utt)
+  (Token utt)
+  (POS utt)
+  (Phrasify utt)
+  (Word utt)
+  (Pauses utt)
+  (Intonation utt)
+  (PostLex utt)
+  (Duration utt)
+  (Int_Targets utt)
+  (Wave_Synth utt)
+  )
+
+Festival ei kuitenkaan ole niin kieliriippumaton kuin milt‰ se n‰ytt‰‰,
+esimerkiksi tekstin lavennus tehd‰‰n tyypillisesti Token-modulissa
+ennen POS-modulia. Suomessa ei kuitenkaan voida laventaa oikein, ennen kuin 
+morfologinen tieto on ker‰tty:
+
+Initialize
+----------
+
+Luo Utterance-olion. Ei muutettu. (Alkuper‰ist‰ C++-koodia.)
+
+Text
+----
+
+Festivalin omaa, kieliriippuvaista C++-koodia, jota ei kivutta voi kirjoittaa
+uudelleen Schemess‰. Tekee alkuper‰isest‰ merkkijonosta Token-relaation.
+Sananloppuiset pisteet k‰sitell‰‰n (j‰rjestysluvuissa ja tietyiss‰
+lyhenteiss‰ v‰‰rin) t‰‰ll‰, eli poistetaan ja laitetaan
+tilalle sopiva tauon ilmaiseva feature (mik‰-sen-nimi-nyt-olikaan).
+Kieliriippuvainen koodi aiheuttaa ongelmia j‰rjestyslukujen ja pisteeseen
+p‰‰ttyvien lyhenteiden tunnistuksen kanssa.
+
+Token_Pos
+---------
+
+Englannin kielt‰ varten rakennettu moduli, jota k‰sitt‰‰kseni
+mik‰‰n muu kieli ei koskaan k‰yt‰. Asettaa token_pos-featuren p‰‰lle
+kullekin tokenille.
+
+Token
+-----
+
+POS
+---
+
+Phrasify
+--------
+
+Word
+----
+
+
+15 miehen 15 soitti 15. tammikuuta klo 15.15 puhelimella numeroon 15 15 15.
+
+Word-modulissa tavutetaan sana ja m‰‰ritell‰‰n eri tavujen painot.
+Suomen sanat taipuvat liikaa, jotta voitaisiin k‰ytt‰‰ kiinte‰‰
+sanastoa, mutta toisaalta suomen kirjoituksen ja puheen v‰linen
+suhde on selke‰ ja sanapaino m‰‰r‰ytyy ensimm‰iselle tavulle,
+t‰m‰ ei ole suuri ongelma. Sanalistojen avulla tehd‰‰n
+ero sis‰ltˆ- ja merkityssanojen v‰lille. Yleisimm‰t sis‰ltˆsanat on
+poimittu morfologisen perustein ja listattu, jotta osattaisiin olla
+laittamatta niille lausepainoa.
+
+Tavutus on totetutettu LTS-s‰‰ntˆjen avulla (vrt. espanjankielinen ‰‰ni).
+S‰‰ntˆjen avulla "v‰‰rennet‰‰n" Festivalin tukema Lisp-lista-muotoinen
+sanakirjamerkint‰. Ensimm‰isen tavun p‰‰painon (2) lis‰ksi sanoille merkit‰‰n
+myˆs mahdollinen sivupaino (1) ja  painottomat tavut (0):
+
+  ("takaraivo" "content" (((t a) 2) ((k a) 0) ((r a i) 1) ((v o) 0)))
+  ("mittari" "content" (((m i) 2) ((t: a) 0) ((r i) 0)))
+  ("mato" "content" (((m a) 2) ((t o) 0)))
+  ("matto" "content" (((m a) 2) ((t: o) 0)))
+
+
+Tarkempi m‰‰ritys sanaston merkinnˆille lˆytyy Festivalin dokumentaatiosta.
+Kannattaa kuitenkin huomatata, ett‰ kirjoitetun ja puhutun kielen tavutus
+ei mene aivan yksi yhteen: kaksi samaa kirjainta vastaa tavallisesti
+yht‰ pitk‰‰ ‰‰nnett‰, esim. ‰skeisen mittari-sanan t:-kirjaimet realistuvat
+puheessa yhten‰ pitk‰n‰ t-‰‰nteen‰. Festivalissa ei ‰‰nteit‰ voi
+kuvata ambisyllaabisina eli kahteen tavuun kuuluvina, joten olemme
+k‰ytt‰neet j‰lkimm‰ist‰ tavua ‰‰nteen paikkana. T‰llˆin
+lyhyet ja pitk‰t ‰‰nteet k‰ytt‰ytyv‰t samalla tavalla (vrt. mato ~ matto).
+T‰m‰ tosin monimutkaistaa ‰‰nnekestomallissa k‰ytettyjen morien
+laskentaa. Todettaakoon myˆs, ettei ‰‰nnekestomalli hyˆdynt‰nyt
+sivupainotietoa, tosin t‰t‰ tietoa ei onnistuttu myˆsk‰‰n erist‰m‰‰n
+parhaalla mahdollisella tavalla opetusta varten.
+
+Pauses
+------
+
+Intonation
+----------
+
+Post_Lex
+--------
+
+Duration
+--------
+
+Oma kestomoduli Duration_Finnish. Periaatteessa ‰‰nnekestot haetaan
+tavalliseen tapaan CART-puusta. Lis‰ksi moduli huolehtii, ett‰
+‰‰nteiden tietty minimipituus s‰ilyy (nyt 30ms) ja venytt‰‰
+viimeist‰ ‰‰nnett‰. (Viimeinen ‰‰nne sis‰lt‰‰ segmentointiteknisist‰
+syist‰ hiljaista loppuaspiraatiota ja lis‰ksi kestomalli ei v‰ltt‰m‰tt‰
+venyt‰ ‰‰nnett‰ itsekseen tarpeeksi.)
+
+
+Int_Targets
+-----------
+
+Wave_Synth
+----------
+
+Signaalin generointi ker‰ttyjen tietojen perusteella. Festivalin omaa
+C++-koodia.
+
+4. MARK-UP
+
+Suomenkielisi‰ ‰‰ni‰ varten kehitettiin oma XML-moodi, nimelt‰‰n Suopuhe.
+
+5. ƒƒNET
+
+Kaksi ‰‰nt‰, mies‰‰ni hy_fi_mv_diphone ja nais‰‰ni suo_fi_lj_diphone.
+ƒ‰nten lisenssitilanteesta en ole tietoinen.
+
+6. TEHOKKUUS
+
+Testaamatta.
+
+7. TIEDOSTOT
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/COPYING
+
+Lisenssi, jahka p‰‰tetty...
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_duration.scm
+
+Suomen kielen ‰‰nnekestomalli. Laskee CART-puun avulla
+‰‰nteiden kestot. Lis‰ksi taukoa edelt‰vi‰ ‰‰nteit‰ venyt‰‰n
+erikseen, sill‰ opetetun puun tekev‰ venytys ei tuntunut riitt‰v‰lt‰.
+RMSE 0.7680 Correlation is 0.6294 Mean (abs) Error 0.5780 (0.5058)
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_lex.scm
+
+Sanastotiedosto. Sanastojen avulla tunnistetaan sis‰ltˆ- ja merkityssanat.
+Lis‰ksi yksitt‰isten kirjainten leksikkoentryt.
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_lts.scm
+
+Sis‰lt‰‰ Letter.to-sound -s‰‰nn‰t, jotka muuttavat grafeemit eli merkit
+foneemeiksi. LTS-konversion yhteydess‰ tehd‰‰n myˆs tavutus.
+"V‰‰rent‰‰" Festivalin sanastoon kuulumattomille sanoille (k‰yt‰nnˆss‰
+kaikki sanat pl. yksitt‰iset aakkkoset) leksikkomerkinn‰t.
+Merkinn‰n sanaluokka m‰‰ritty finnish_lex-tiedoston tietojen pÂerusteella
+tai suopuhe-moodilta saatujen tietojen perusteella.
+
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_mv_int.scm
+
+Intonaatiomalli eli Fujisakin malli. Laskee perustaajuuden tavallisesti
+50 millisekuntin v‰lein, lyhyiss‰ tavuissa tihe‰mmin.
+
+Intonaation yhteydess‰ myˆs nime‰‰ tavut.
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_mv_phrase.scm
+
+Lis‰‰ puhunnokseen tauot ja tauotuksen j‰lkeen huolehtii myˆs
+alkukahdennuksesta. 
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/finnish_phones.scm
+
+Suomenkielisten ‰‰nteiden m‰‰ritelm‰t. K‰ytet‰‰n mm. kestomallin apuna.
+ƒ‰nteiden nimien pohjana toimii Sampa-aakkosto, mutta yhdenmukaisuus
+ei ole t‰ydellinen. Meid‰n tiettyjen ‰‰nteiden nimet ovat intuitiivisesti
+helpompia muistaa.
+
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/hy_fi_mv_diphone.scm
+  festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/suo_fi_lj_diphone.scm
+
+Mies- (hy_fi_mv_diphone) ja nais‰‰nen (suo_fi_lj_diphone) 
+m‰‰ritelm‰t. Nais‰‰nen "tiedosto" on vain symbolinen linkki mies‰‰neen.
+
+festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/suopuhe.dtd
+
+Suopuhe-XML-moodin k‰ytt‰m‰ DTD.
+
+festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/suopuhe_filter.perl
+
+Suopuhe-moodin k‰ytt‰m‰ tekstin esik‰sittelij‰.
+Siivoaa syˆtett‰ erin‰isin osin. Siivous on helpompi tehd‰ Perlill‰
+kuin Schemell‰...
+
+festival/lib/voices/finnish/hy_fi_mv_diphone/festvox/suopuhe_mode.scm/
+
+Suopuhe-moodin tulkitseva scheme-koodi
+
+festival/lib/voices/finnish/hy_fi_mv_diphone/group/mvlpc.group
+
+Mies‰‰nen ‰‰nitietokanta.
+
+festival/lib/voices/finnish/suo_fi_lj_diphone/group/ljlpc.group
+
+Nais‰‰nen ‰‰nitietokanta,
+
+8. SUOPUHEEN FUNKTIOT
+
+(= N1 N2)
+Return true if N1 and N2 are equal numbers.
+
+(Duration_Finnish)
+Lengthens the final phone after the duration cart tree.
+
+(SayText TEXT)
+TEXT, a string, is rendered as speech. (Suopuhe redifinion)
+
+(accented_p SYL)
+Sees if the syllable is accented...
+
+(add_linguistic_break WORD)
+Adds a phrase break after the word, if the context is appropriate.
+If the word is final return nil. If there already is a pause
+return the word itself. Also is pause is added, return the word itself.
+If pause couldn't be added, try the same with the next word. Simple!
+
+(baptize SYL)
+Baptizes the given syllable by concatenating together the names
+of it's daughters (phones)
+
+ (calculate_fujisaki acc_list phrase list point alpha beta f_min)
+Calculates the Fujisaki parameter values for a given point. Returns an absolute
+Hertz value
+
+(compound_stress WORD)
+Handles the exception stress placement in compounds.
+The few compounds supported are recognized by the '-' separator.
+However secondary word stress did not show up in duration and intonation
+models... We could also add boundary detection based on vowel positions
+in neighboring syllables.
+
+(distance_from_prev_pause WORD)
+Distance (in syllables) from the previous word.
+
+(distance_to_next_pause WORD)
+Counts the distance from the end of the word to the next pause in syllables.
+
+(end_of_phrase PHONE)
+Used by the duration tree to detect phrase boundary.
+Returns either 1 (last syllable), 2 (penultimate syllable of the phrase)
+or 0 (other). Somehow I'm sure that there are easier and faster
+ways to do this...
+
+(extract_feats relname feats utt outfd)
+Extract the features and write them to the screen.
+
+No documentation available for user-defined function.
+
+(find_phrase_break WORD)
+If the distance from previous break to the next break is
+long enough (now 25 syllables), try to add more pauses
+in between. New pauses are added between certain word classes.
+
+(define (find_phrases utt)
+Returns a list of phrases from an utterance in the form
+of lists whose car is the break level followed by start and end times
+
+(finnish_lts WORD) 
+Creates the lexical entry for the given WORD.
+
+(finnish_number INT)
+Converts the INT into a corresponding string.
+Very simple. Does not handle cases.
+
+(finnish_token_to_words token name)
+A few simple ad hoc solutions for the most common simple T2W-problems.
+It was much nicer to use an external Perl text normalizer than scheme.
+
+(finnish_tosyl_brackets phones)
+Takes a list of phones containing - as syllable boundary.  
+Should we add a compound boundary? Probably...
+Construct the Festival bracket structure. 
+Used by finnish_lts-function.
+
+(fujisaki_targ_func UTT STREAMITEM)
+Returns a list of targets for the given syllable.
+
+(general_fi_diphone) 
+Shared settings for all Suopuhe voices.
+
+(general_fi_diphone) 
+Shared settings for all Suopuhe voices.
+
+(get_accent_list UTT)
+
+(get_amplitude point beta)
+Calculate the amplitude from time and beta information:
+
+(get_phrase_amplitude time alpha)
+calculate phrase amplitude for a given point in time.
+
+(get_phrase_list utt)
+Returns a list of phrase commands for an utterance. The first command
+is higher than the following ones.
+
+(initial_doubling WORD)
+Checks wheter the current WORD can triggers initial doubling on the
+next word or not.
+
+(insert_pause2 WORDITEM)
+ Insert a little break (pause segment) after the last segment in WORDITEM in UTT.
+
+(intro-finnish)
+Synthesize an introduction to the Festival Speech Synthesis System
+in Finnish.
+
+(lab_body PHONE)
+Writes the LAB data for a given phone and recursively call
+itself while there are phones left (ortographically right:).
+The header is done in lab_header procedure which typically
+is the caller of this function.
+
+(lab_header UTT)
+Returns the contents for the to-be *.lab file based on the UTTerance.
+Saving the output to a file is done somewhere higher.
+
+(language_finnish)
+Set up language parameters for Finnish.
+
+(list2string LIST)
+Construct a string from a list of symbols
+
+(make_number INT)
+Splits numbers into 3-letter chunks, which are converted into a number.
+Also adds an appropriate  quantifier (like thousands) to each triplet,
+thus producing any int between 1 - 999999999.
+
+(make_number2 INT)
+Converts an up-to-three digit sequence into a number.
+
+(max num1 num2)
+Returns the greater of the two.
+
+(min num1 num2)
+Returns the smaller of the two.
+
+(monotone UTT SYL)
+Monotonous intonation model.
+
+(mora PHONE)
+Counts the number of morae in the syllable.
+Used by the duration model.
+
+(mora2 list_of_phones)
+Counts the moras (morae?) in a given list of phones.
+Does not support ambisyllabic long consonants.
+
+(neg number)
+Negates a number -- Festival SIOD doesn't understand (- number), but
+requires TWO arguments to the '-' operator
+
+(number_list DIGIT)
+Returns the corresponding string for a given DIGIT
+
+(one_by_one WORD)
+Speaks the letters in the given WORD one by one.
+
+(parts_of_speech UTT)
+Returns a list of sublists. Each sublist consists of a word's name
+and part-of-speech based on the UTTerance.
+
+(phone_durations PHONE)
+Prints the name and duration of a given PHONE.
+The recursively goes through the next phones and does the same for them also.
+
+(phones UTT)
+Prints a list of phone names in UTTerance and returns the original utterance
+unchanged..
+
+(pop_accent)
+Removes and returns the topmost whatever from the suopuhe_accent_stack.
+
+(pop_pos)
+Removes and returns the topmost whatever from the suopuhe_pos_stack.
+
+(push_accent alkio)
+Adds alkio to the top of the suopuhe_accent_stack.
+
+(push_pos alkio)
+Adds alkio to the top of the suopuhe_pos_stack.
+
+(remove_head_and_tail_spaces string)
+Removes unspoken space sequences from the beginning and end of a give string.
+
+(save_suopuhe_output UTT)
+Saves the UTT and some textual data about it to files.
+
+(skip_pause WORD)
+Returns the word after the next pause or nil if there are no intersentence
+pauses left.
+
+(sqr NUM)
+NUM ** 2.
+
+(suopuhe_Pauses utt)
+Converts the punctuation marks into appropriate pauses.
+Does the list intonation too.
+
+(suopuhe_add_break UTT)
+Adds pauses if necessary to a (overlong) utterance.
+Applies some linguistic intelligence in the process...
+
+(suopuhe_adjust_volume utt)
+Amplify or attenutate signale based on value of suopuhe_vol_factor
+and suopuhe_vol_type (absolute or relative).
+
+(suopuhe_exit_func)
+Exit function for SUOPUHE mode
+
+(suopuhe_init_func)
+Initialisation for SUOPUHE mode
+
+(suopuhe_init_globals)
+Initialize various global variables.
+
+(suopuhe_setup)
+Reset tts hooks for suopuhe mode.
+
+(suopuhe_token_to_words token name)
+SUOPUHE mode token specific analysis.
+
+(suopuhe_voice_param_setup)
+Set up original values for various voice parameters.
+
+(syllable stress UTT)
+Returns a list of sublists. Each sublist consists of a syllable name
+and a syllable stress value based on the UTTerance.
+
+(syllables_in_word SYL)
+Counts the number of syllables in a given word. Actually counts the numebr
+of syllables from a given syllable to the end of word.
+
+(tts FILE MODE)
+  Convert FILE to speech.  MODE identifies any special treatment
+  necessary for FILE.  This is simply a front end to tts_file but 
+  puts the system in sync audio mode first. [see TTS]
+
+(utt.length utt)
+Returns the length of an utterance in syllables
+
+(wavesurf UTT)
+Saves the utterance UTT as a wav file 
+and the creates the corresponding lab file.
+The files are placed in the /tmp dir.
+Then starts the wavesurfer-program for speech analysis.
+
+(word durations2 WORD)
+Returns the name and start and end times of the given word.
+Then recursively calls the next word if any and finally
+returns a string consisting of data from all words visited.
+
+(word_has_break? WORD)
+True, if the WORD is followed by # or ##  "phone".
+
+(word_list_entry? STRING LIST)
+Checks whether the STRING is member of any of the sublists of LIST.
+
+
+9. SUOPUHEEN MUUTTUJAT
+
+suopuhe_output_file_prefix
+  M‰‰ritt‰‰ hakemistot, johon suopuhe-moodin mukaiset tiedostot talletetaan.
+  Oletusarvo "/tmp"
+
+suopuhe_max_sentences
+  M‰‰ritt‰‰ yl‰rajan levylle talletettaville puhunnoksille.
+  Oletusarvo 1000. Arvolla 0 tiedostoja ei pit‰isi p‰‰ty‰
+  kovalevylle laisinkaan, eli t‰llˆin puhunnokset vain soitetaan.
+
+suopuhe_aloud
+  Jos tosi niin syntetisoitava ‰‰ni soitetaan ulos kaiuttimista,
+  muuten (arvolla ep‰tosi) se vain talletetaan levylle.
+  Oletusarvoisesti tosi.
+
+[Vajavainen]
+
+10. TUNNETUT BUGIT
+
+Festival README.tiedosto kertoo seuraavaa:
+
+  INSTALL
+
+  Festival should run on any standard Unix platform.  It has already run
+  on Solaris, SunOS, Linux and FreeBSD.  It requires a C++ compiler (GCC
+  2.7.2, 2.8.1, 2.95.[123], RedHat "gcc-2.96" and egcs are our standard
+  compilers) to install. A port to Windows NT/95/98 and 2000 using
+  either Cygnus GNUWIN32 and Visual C++ is included, this is still new
+  but many people are successfully using it.
+
+
+Joillain gcc:n versiolla (3.2x) ei Festivalin versio 1.4.2 k‰‰nny.
+Ongelma ratkeaa siirtym‰ll‰ uudempaan Festivalin versioon (1.4.3)
+
+Verkosta lˆytyy valmiita RPM-tiedostoja, mutta n‰iss‰ on ‰‰kkˆsiin
+liittyv‰ bugi (7-bittinen ascii...), joka johtuu SIOD:n k‰ytt‰m‰n
+editline-komentoriviohjelman rajoituksista.
+L‰hdekoodin teht‰v‰ bugikorjaus on kerrottu www:ss‰ (Ks. kpl 12), mutta
+RPM:‰‰n t‰t‰ ei voine tehd‰.
+
+Syntetisaattori k‰ytt‰‰ ensisijaisesti lavennukseen ulkoista 
+lavennin-modulia, joten sen omat tekstin lavennuss‰‰nnˆt ovat sangen
+huonot.
+
+Alkuper‰inen koodimme on kirjoitettu ISO-8859-1 -standardilla
+(vai oliko se 8859-15). Uudemmat unixit yritt‰v‰t tukea UTF-8:aa.
+UTF-8-tuki puuttuu... Korjaukset tulisi tehd‰ tiedostoon
+editline.cc, mutta niit‰ tuskin ehdit‰‰n tekem‰‰n/testaamaan projektin
+puitteissa,
+
+11. KƒYTT÷
+
+Lukee laventimen tekem‰t suo- tai suopuhe-prefiksill‰ varustetut tiedostot
+suopuhe-moodissa, k‰skyll‰
+
+$ festival --tts foo.suo
+
+Muuten k‰yttˆ festivalin ohjekirjojen mukainen
+
+12. WWW-SIVUT
+
+Syntisaattorit ohjesivut tulevat vastaisuudessa lˆytym‰‰n
+osoitteen http://www.ling.helsinki.fi/suopuhe alta.
+
+
+
+MUUTA
+
+VERSIOHISTORIA
+
+
+
+Notaatio: 
+numerot kertovat versionumerot,
+kirjaimet viittavat pieniin p‰ivityksiin/bugikorjauksiin.
+
+       22.10.2004  Lisenssitekstin liimailua 
+
+  1.0f  23.5.2003  ƒ‰nipakettin polku festvox-paketteja vastaavaksi.
+	           Puuttuvat funktioiden dokumentoinnit koodiin sek‰
+	           funtioiden dokumentaatio t‰h‰n dokumenttiin.
+		   README-tiedostot siirtyneet yht‰ hakemistoa ylemm‰s.
+
+  1.0e  22.4.2003  Duration_Method paremmin ‰‰niriippumattomaksi.
+		   Versio nais‰‰nest‰ pihalle
+
+  1.0d  16.4.2003  Korjattu suopuhe-moodissa ollut tauotusvirhe.
+		   Korjattu paketintekoskriptiss‰ ollut virhe, jonka
+		   takia edellinen julkaistu versio (1.0c) ei sellaisenaan
+	           toiminut.
+
+  1.0c  10.4.2003  Korjattu virhe LTS-s‰‰nnˆist‰.
+	           Poistettu 1 tarpeettomaksi k‰ynyt funktio.
+	           Mahdollisesti muitakin pieni‰ muutoksia
+
+  1.0b  10.2.2003  T‰m‰ tiedosto osaksi pakettia.
+		   Muutamaa ‰‰nnekestoa korjattu k‰sin. (mm. pitk‰ l)
+
+  1.0a	6.2.2003   Suopuhe-moodista unohtuneet funktiot lis‰tty 
+		   pakettiin. Muutama bugikorjaus.
+
+  1.0	5.2.2003   julkaistu alustava versio
+
+Ennen helmikuuta 2003 julkaistut beta-versiot oli nimetty julkaisup‰iv‰n
+mukaan.
