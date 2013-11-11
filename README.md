@@ -15,4 +15,4 @@ The initial contents are collected from following places:
 
 - http://ftp-master.metadata.debian.org/changelogs//main/f/festvox-suopuhe-lj/festvox-suopuhe-lj_1.0g-20051204-3_copyright
 
-- http://ftp.de.debian.org/debian/pool/main/f/festvox-suopuhe-mv/festvox-suopuhe-mv_20041119.orig.tar.gz (original download URL http://phon.joensuu.fi/suopuhe/tulosaineisto/suo_fi_lj-1.0g-20051204.tgz missing)
+- http://ftp.de.debian.org/debian/pool/main/f/festvox-suopuhe-lj/festvox-suopuhe-lj_1.0g-20051204.orig.tar.gz (original download URL http://phon.joensuu.fi/suopuhe/tulosaineisto/suo_fi_lj-1.0g-20051204.tgz missing)
